@@ -1,5 +1,7 @@
 # ZeroCool
 
+<img width="1895" height="771" alt="image" src="https://github.com/user-attachments/assets/b591500d-4ac1-4551-a8e5-777be77e9d44" />
+
 > *"Mess with the best, die like the rest."*
 
 A web-based control panel for professional penetration testing engagements,
