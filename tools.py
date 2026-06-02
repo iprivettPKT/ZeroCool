@@ -102,6 +102,22 @@ PACKAGES.update({
     "arjun":        {"label": "Arjun", "install": "pipx install arjun || sudo apt-get install -y arjun"},
 })
 
+# Cloud recon tools.
+PACKAGES.update({
+    "aws":          {"label": "AWS CLI", "install": "pipx install awscli || sudo apt-get install -y awscli"},
+    "az":           {"label": "Azure CLI", "install": "curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash"},
+    "gcloud":       {"label": "Google Cloud SDK", "install": "sudo apt-get install -y google-cloud-cli"},
+    "scout":        {"label": "ScoutSuite", "install": "pipx install scoutsuite"},
+    "prowler":      {"label": "Prowler", "install": "pipx install prowler"},
+    "cloud_enum":   {"label": "cloud_enum", "install": "pipx install cloud-enum"},
+    "s3scanner":    {"label": "S3Scanner", "install": "pipx install s3scanner"},
+    "o365spray":    {"label": "o365spray", "install": "pipx install o365spray"},
+    "subfinder":    {"label": "subfinder", "install": "go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"},
+    "amass":        {"label": "amass", "install": "sudo apt-get install -y amass"},
+    "azurehound":   {"label": "AzureHound", "install": "go install github.com/bloodhoundad/azurehound/v2@latest"},
+    "roadrecon":    {"label": "ROADrecon", "install": "pipx install roadrecon"},
+})
+
 PROXYCHAINS_CONF = os.path.join(TOOLS_DIR, "proxychains.conf")
 
 

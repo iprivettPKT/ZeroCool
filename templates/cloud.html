@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %} — Cloud Recon{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <h1>Cloud Recon</h1>
+  <p class="muted">AWS / Azure / GCP / M365 enumeration, built from a keyword + domain. Run here, send to a shell, or route via proxychains.</p>
+</header>
+
+<div class="ad-layout">
+  <div class="ad-catalog">
+    {% for cat in categories %}
+      <div class="ad-cat">
+        <div class="ad-cat-head">{{ cat }}</div>
+        {% for a in catalog if a.cat == cat %}
+          <button type="button" class="ad-action" data-action-id="{{ a.id }}" title="{{ a.desc }}">{{ a.label }}</button>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="ad-detail" data-no-persist>
+    <div id="detail-empty" class="muted detail-empty">Select a recon action on the left.</div>
+
+    <div id="detail" class="hidden">
+      <h2 id="d-label"></h2>
+      <p id="d-desc" class="muted"></p>
+
+      <fieldset>
+        <legend>Target</legend>
+        <div class="field-grid">
+          <label>Keyword / company <input type="text" id="keyword" value="{{ eng.client }}" placeholder="acme"></label>
+          <label>Domain <input type="text" id="domain" value="{{ eng.domain }}" placeholder="acme.com"></label>
+          <label class="check inline"><input type="checkbox" id="proxychains"> via proxychains{% if eng.socks_proxy %} <span class="muted small">({{ eng.socks_proxy }})</span>{% endif %}</label>
+        </div>
+      </fieldset>
+
+      <fieldset id="action-fieldset" class="hidden">
+        <legend>Options</legend>
+        <div id="action-inputs" class="field-grid"></div>
+      </fieldset>
+
+      <div class="preview-box">
+        <div class="preview-head"><span>Command preview</span></div>
+        <pre id="cmd-preview" class="cmd-preview"></pre>
+        <div id="warnings" class="warnings"></div>
+        <div class="preview-actions">
+          <button id="run-btn" class="btn primary">Run</button>
+          <button id="kill-btn" class="btn" disabled>Stop</button>
+          <button id="copy-btn" class="btn ghost">Copy</button>
+          <span class="action-sep"></span>
+          <select id="cloud-session" class="ad-session-sel" title="open reverse shells"><option value="">no session</option></select>
+          <button id="send-btn" class="btn ghost">Send →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="terminal" id="terminal">
+  <div class="term-head">
+    <span class="dot red"></span><span class="dot amber"></span><span class="dot green"></span>
+    <span data-term-status class="term-status status-idle">idle</span>
+    <span data-term-cmd class="term-cmd"></span>
+  </div>
+  <pre data-term-output class="term-output"></pre>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/zeroterm.js') }}"></script>
+<script>
+const CATALOG = {{ catalog|tojson }};
+const BY_ID = {}; CATALOG.forEach(a => BY_ID[a.id] = a);
+const OUTPUT_DIR = {{ (eng.output_dir or '')|tojson }};
+
+const term = ZeroTerm.attach(document.getElementById('terminal'));
+const detail = document.getElementById('detail');
+const detailEmpty = document.getElementById('detail-empty');
+const dLabel = document.getElementById('d-label');
+const dDesc = document.getElementById('d-desc');
+const actionFieldset = document.getElementById('action-fieldset');
+const actionInputs = document.getElementById('action-inputs');
+const preview = document.getElementById('cmd-preview');
+const runBtn = document.getElementById('run-btn');
+const killBtn = document.getElementById('kill-btn');
+const copyBtn = document.getElementById('copy-btn');
+
+let selected = null, currentCommand = '', running = false;
+
+function renderInputs(action) {
+  actionInputs.innerHTML = '';
+  const inputs = action.inputs || [];
+  if (!inputs.length) { actionFieldset.classList.add('hidden'); return; }
+  actionFieldset.classList.remove('hidden');
+  inputs.forEach(inp => {
+    const label = document.createElement('label');
+    label.textContent = inp.label;
+    const f = document.createElement('input');
+    f.type = 'text'; f.dataset.param = inp.name; f.placeholder = inp.placeholder || '';
+    if (inp.default) f.value = inp.default;
+    label.appendChild(f); actionInputs.appendChild(label);
+  });
+}
+
+function gatherParams() {
+  const p = {
+    keyword: document.getElementById('keyword').value,
+    domain: document.getElementById('domain').value,
+    proxychains: document.getElementById('proxychains').checked,
+  };
+  actionInputs.querySelectorAll('[data-param]').forEach(el => p[el.dataset.param] = el.value);
+  return p;
+}
+
+let debounce = null;
+function refresh() {
+  if (!selected) return;
+  clearTimeout(debounce);
+  debounce = setTimeout(async () => {
+    try {
+      const resp = await fetch('{{ url_for("cloud.cloud_build") }}', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action_id: selected, params: gatherParams()}),
+      });
+      const data = await resp.json();
+      currentCommand = data.command || '';
+      preview.textContent = currentCommand;
+      runBtn.disabled = running || !currentCommand;
+    } catch (e) {}
+  }, 150);
+}
+
+function selectAction(id) {
+  selected = id;
+  const action = BY_ID[id];
+  detailEmpty.classList.add('hidden'); detail.classList.remove('hidden');
+  dLabel.textContent = action.label; dDesc.textContent = action.desc;
+  renderInputs(action);
+  document.querySelectorAll('.ad-action').forEach(b => b.classList.toggle('sel', b.dataset.actionId === id));
+  refresh();
+}
+
+function persistCloud() { if (selected) { ZCPersist.save('cloud-sel', selected); ZCPersist.save('cloud-params', gatherParams()); } }
+function applyCloud(p) {
+  const set = (id, v) => { const el = document.getElementById(id); if (el && v != null) { if (el.type === 'checkbox') el.checked = !!v; else el.value = v; } };
+  set('keyword', p.keyword); set('domain', p.domain);
+  const pc = document.getElementById('proxychains'); if (pc) pc.checked = !!p.proxychains;
+  actionInputs.querySelectorAll('[data-param]').forEach(el => { if (p[el.dataset.param] != null) el.value = p[el.dataset.param]; });
+}
+
+document.querySelectorAll('.ad-action').forEach(b => b.addEventListener('click', () => selectAction(b.dataset.actionId)));
+detail.addEventListener('input', () => { refresh(); persistCloud(); });
+detail.addEventListener('change', () => { refresh(); persistCloud(); });
+
+term.onState(s => { running = (s === 'running'); runBtn.disabled = running || !currentCommand; killBtn.disabled = !running; });
+runBtn.addEventListener('click', () => { if (currentCommand && !running) term.run(currentCommand, OUTPUT_DIR); });
+killBtn.addEventListener('click', () => term.kill());
+copyBtn.addEventListener('click', () => navigator.clipboard?.writeText(currentCommand));
+
+const sendBtn = document.getElementById('send-btn');
+const sessionSel = document.getElementById('cloud-session');
+sendBtn.addEventListener('click', async () => {
+  const sid = sessionSel.value;
+  if (!currentCommand) return;
+  if (!sid) { sendBtn.textContent = 'no session'; setTimeout(() => sendBtn.textContent = 'Send →', 1300); return; }
+  sendBtn.textContent = '…';
+  let ok = false;
+  try { const r = await fetch('/shells/send/' + sid, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({data: currentCommand}) }); ok = r.ok && (await r.json()).sent; } catch (e) {}
+  sendBtn.textContent = ok ? 'sent ✓' : 'failed';
+  setTimeout(() => sendBtn.textContent = 'Send →', 1300);
+});
+async function loadSessions() {
+  let d; try { d = await (await fetch('/shells/state')).json(); } catch (e) { return; }
+  const cur = sessionSel.value;
+  const open = (d.sessions || []).filter(s => s.status === 'open');
+  sessionSel.innerHTML = open.length ? '' : '<option value="">no session</option>';
+  open.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.addr + ' (' + s.id + ')'; sessionSel.appendChild(o); });
+  if (cur && open.some(s => s.id === cur)) sessionSel.value = cur;
+}
+loadSessions(); setInterval(loadSessions, 3000);
+
+(function () {
+  const sel = ZCPersist.load('cloud-sel', null);
+  if (sel && BY_ID[sel]) { selectAction(sel); applyCloud(ZCPersist.load('cloud-params', {}) || {}); refresh(); }
+})();
+</script>
+{% endblock %}
