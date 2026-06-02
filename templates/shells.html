@@ -69,7 +69,7 @@
 <script src="{{ url_for('static', filename='vendor/xterm-addon-fit.js') }}"></script>
 <script>
 const term = new Terminal({
-  convertEol: true, cursorBlink: true, scrollback: 5000,
+  convertEol: true, cursorBlink: true, scrollback: 100000,
   fontFamily: '"JetBrains Mono","Fira Code",monospace', fontSize: 13,
   theme: { background: '#050805', foreground: '#9dffb0', cursor: '#39ff14' },
 });

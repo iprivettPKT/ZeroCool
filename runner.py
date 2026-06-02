@@ -121,6 +121,8 @@ def _execute(job: Job) -> None:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            encoding="utf-8",
+            errors="replace",  # never let an undecodable byte truncate/kill the reader
             bufsize=1,
             start_new_session=True,  # own process group so we can kill the tree
             env=env,
@@ -133,8 +135,13 @@ def _execute(job: Job) -> None:
         return
 
     assert job.proc.stdout is not None
-    for line in job.proc.stdout:
-        job.add_line(line.rstrip("\n"))
+    # Guard the read loop so nothing (decode/IO error) can leave the job stuck
+    # "running" with truncated output — the job must always complete.
+    try:
+        for line in job.proc.stdout:
+            job.add_line(line.rstrip("\n"))
+    except (OSError, ValueError) as exc:
+        job.add_line(f"[zerocool] output read error: {exc}", stream="stderr")
     job.proc.wait()
     job.exit_code = job.proc.returncode
 
