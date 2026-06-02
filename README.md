@@ -31,6 +31,7 @@ every command logged.
 | **Cloud Recon** | AWS / Azure / GCP / M365-Entra / multi-cloud enumeration (ScoutSuite, Prowler, AzureHound, ROADrecon, cloud_enum, S3Scanner, o365spray, subfinder…) from a keyword + domain. |
 | **Privilege Escalation** | Linux & Windows technique catalog (LinPEAS/WinPEAS/PowerUp, SUID/sudo/caps, Potato, AlwaysInstallElevated, …) with stage-and-serve helpers. |
 | **Reverse Shells** | Multi-session TCP handler with an xterm.js console, PTY upgrade and raw interactive mode; reverse-shell payload generator. |
+| **Payloads** | msfvenom builder (LHOST pre-filled, output to loot, matching listener/handler) plus a revshells-style catalog of 30+ reverse-shell one-liners with IP/port/shell substitution and Base64/URL obfuscation. |
 | **Pivoting & Tunnels** | Chisel / Ligolo-ng / SSH (-L/-R/-D) / sshuttle / socat recipes, plus a proxychains config that the AD/Web modules can route through. |
 | **File Transfer** | Managed HTTP server — directory listing + downloads and PUT/POST uploads — with a transfer log and ready-made download/upload commands. |
 | **Loot & Reporting** | Findings tracker (add/edit/delete), an 80+ template finding library, auto-detection from nmap results (incl. **confirmed** findings from NSE script output), **screenshot terminal output straight into a finding** (embedded in the report), loot browser, and HTML / Markdown report export. |

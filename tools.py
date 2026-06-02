@@ -67,6 +67,7 @@ PACKAGES = {
     "certipy":          {"label": "Certipy", "install": "pipx install certipy-ad"},
     "evil-winrm":       {"label": "Evil-WinRM", "install": "sudo gem install evil-winrm || sudo apt-get install -y evil-winrm"},
     "responder":        {"label": "Responder", "install": "sudo apt-get install -y responder"},
+    "msfvenom":         {"label": "Metasploit (msfvenom)", "install": "sudo apt-get install -y metasploit-framework"},
     "coercer":          {"label": "Coercer", "install": "pipx install coercer"},
     "enum4linux-ng":    {"label": "enum4linux-ng", "install": "pipx install enum4linux-ng || sudo apt-get install -y enum4linux-ng"},
     "bloodhound-python": {"label": "BloodHound.py", "install": "pipx install bloodhound"},

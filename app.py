@@ -34,6 +34,7 @@ from creds import creds_bp
 from fileserver import files_bp
 from netmap import netmap_bp
 from parser import results_bp
+from payloads import payloads_bp
 from pivot import pivot_bp
 from privesc import privesc_bp
 from recon import recon_bp
@@ -57,6 +58,7 @@ app.register_blueprint(netmap_bp)
 app.register_blueprint(cloud_bp)
 app.register_blueprint(settings_bp)
 app.register_blueprint(creds_bp)
+app.register_blueprint(payloads_bp)
 
 
 @app.context_processor

