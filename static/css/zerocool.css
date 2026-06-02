@@ -631,3 +631,16 @@ body { transition: background .15s, color .15s; }
   color: var(--green-soft); padding: 9px 11px; font-family: var(--mono); font-size: 12px; resize: vertical; }
 .cred-store .cred-val { font-family: var(--mono); font-size: 11px; color: var(--muted); word-break: break-all; max-width: 360px; }
 .cred-store .cred-cracked { color: var(--green); font-weight: 700; font-family: var(--mono); }
+
+/* ---------- collapsible sidebar sections ---------- */
+.nav-group { margin-top: 8px; }
+.nav-group-head {
+  display: flex; align-items: center; justify-content: space-between; cursor: pointer;
+  color: var(--muted); font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+  padding: 8px 10px 4px; user-select: none;
+}
+.nav-group-head:hover { color: var(--green-soft); }
+.nav-group-head .chev { font-size: 9px; transition: transform .12s; }
+.nav-group.collapsed .chev { transform: rotate(-90deg); }
+.nav-group.collapsed .nav-group-items { display: none; }
+.nav-group-items { display: flex; flex-direction: column; gap: 2px; }

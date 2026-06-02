@@ -22,41 +22,53 @@
            class="{{ 'active' if request.endpoint == 'dashboard' }}">Dashboard</a>
         <a href="{{ url_for('engagement') }}"
            class="{{ 'active' if request.endpoint == 'engagement' }}">Engagement</a>
-        <a href="{{ url_for('terminal') }}"
-           class="{{ 'active' if request.endpoint == 'terminal' }}">Terminal</a>
-        <a href="{{ url_for('activity') }}"
-           class="{{ 'active' if request.endpoint in ['activity', 'activity_detail'] }}">Activity Log</a>
-        <a href="{{ url_for('creds.creds') }}"
-           class="{{ 'active' if request.endpoint == 'creds.creds' }}">Credentials</a>
-        <a href="{{ url_for('tools_page') }}"
-           class="{{ 'active' if request.endpoint == 'tools_page' }}">Dependencies</a>
-        <a href="{{ url_for('settings.settings') }}"
-           class="{{ 'active' if request.endpoint == 'settings.settings' }}">Advanced Settings</a>
-        <span class="nav-section">Modules</span>
-        <a href="{{ url_for('recon.recon') }}"
-           class="{{ 'active' if request.endpoint == 'recon.recon' }}">Recon &amp; Scanning</a>
-        <a href="{{ url_for('ad.ad') }}"
-           class="{{ 'active' if request.endpoint == 'ad.ad' }}">Active Directory</a>
-        <a href="{{ url_for('results.results') }}"
-           class="{{ 'active' if request.endpoint == 'results.results' }}">Scan Results</a>
-        <a href="{{ url_for('netmap.netmap') }}"
-           class="{{ 'active' if request.endpoint == 'netmap.netmap' }}">Network Map</a>
-        <a href="{{ url_for('cloud.cloud') }}"
-           class="{{ 'active' if request.endpoint == 'cloud.cloud' }}">Cloud Recon</a>
-        <a href="{{ url_for('shells.shells') }}"
-           class="{{ 'active' if request.endpoint == 'shells.shells' }}">Reverse Shells</a>
-        <a href="{{ url_for('payloads.payloads') }}"
-           class="{{ 'active' if request.endpoint == 'payloads.payloads' }}">Payloads</a>
-        <a href="{{ url_for('files.files') }}"
-           class="{{ 'active' if request.endpoint == 'files.files' }}">File Transfer</a>
-        <a href="{{ url_for('pivot.pivot') }}"
-           class="{{ 'active' if request.endpoint == 'pivot.pivot' }}">Pivoting &amp; Tunnels</a>
-        <a href="{{ url_for('privesc.privesc') }}"
-           class="{{ 'active' if request.endpoint == 'privesc.privesc' }}">Privilege Escalation</a>
-        <a href="{{ url_for('web.web') }}"
-           class="{{ 'active' if request.endpoint == 'web.web' }}">Web</a>
-        <a href="{{ url_for('reporting.loot') }}"
-           class="{{ 'active' if request.endpoint in ['reporting.loot', 'reporting.report'] }}">Loot &amp; Reporting</a>
+
+        <div class="nav-group collapsed" data-g="recon">
+          <div class="nav-group-head"><span>Recon</span><span class="chev">▾</span></div>
+          <div class="nav-group-items">
+            <a href="{{ url_for('recon.recon') }}" class="{{ 'active' if request.endpoint == 'recon.recon' }}">Recon &amp; Scanning</a>
+            <a href="{{ url_for('results.results') }}" class="{{ 'active' if request.endpoint == 'results.results' }}">Scan Results</a>
+            <a href="{{ url_for('netmap.netmap') }}" class="{{ 'active' if request.endpoint == 'netmap.netmap' }}">Network Map</a>
+            <a href="{{ url_for('cloud.cloud') }}" class="{{ 'active' if request.endpoint == 'cloud.cloud' }}">Cloud Recon</a>
+          </div>
+        </div>
+
+        <div class="nav-group collapsed" data-g="attack">
+          <div class="nav-group-head"><span>Attack</span><span class="chev">▾</span></div>
+          <div class="nav-group-items">
+            <a href="{{ url_for('ad.ad') }}" class="{{ 'active' if request.endpoint == 'ad.ad' }}">Active Directory</a>
+            <a href="{{ url_for('web.web') }}" class="{{ 'active' if request.endpoint == 'web.web' }}">Web</a>
+            <a href="{{ url_for('privesc.privesc') }}" class="{{ 'active' if request.endpoint == 'privesc.privesc' }}">Privilege Escalation</a>
+          </div>
+        </div>
+
+        <div class="nav-group collapsed" data-g="access">
+          <div class="nav-group-head"><span>Access</span><span class="chev">▾</span></div>
+          <div class="nav-group-items">
+            <a href="{{ url_for('shells.shells') }}" class="{{ 'active' if request.endpoint == 'shells.shells' }}">Reverse Shells</a>
+            <a href="{{ url_for('payloads.payloads') }}" class="{{ 'active' if request.endpoint == 'payloads.payloads' }}">Payloads</a>
+            <a href="{{ url_for('pivot.pivot') }}" class="{{ 'active' if request.endpoint == 'pivot.pivot' }}">Pivoting &amp; Tunnels</a>
+            <a href="{{ url_for('files.files') }}" class="{{ 'active' if request.endpoint == 'files.files' }}">File Transfer</a>
+          </div>
+        </div>
+
+        <div class="nav-group collapsed" data-g="data">
+          <div class="nav-group-head"><span>Data</span><span class="chev">▾</span></div>
+          <div class="nav-group-items">
+            <a href="{{ url_for('creds.creds') }}" class="{{ 'active' if request.endpoint == 'creds.creds' }}">Credentials</a>
+            <a href="{{ url_for('reporting.loot') }}" class="{{ 'active' if request.endpoint in ['reporting.loot', 'reporting.report'] }}">Loot &amp; Reporting</a>
+            <a href="{{ url_for('activity') }}" class="{{ 'active' if request.endpoint in ['activity', 'activity_detail'] }}">Activity Log</a>
+          </div>
+        </div>
+
+        <div class="nav-group collapsed" data-g="system">
+          <div class="nav-group-head"><span>System</span><span class="chev">▾</span></div>
+          <div class="nav-group-items">
+            <a href="{{ url_for('terminal') }}" class="{{ 'active' if request.endpoint == 'terminal' }}">Terminal</a>
+            <a href="{{ url_for('tools_page') }}" class="{{ 'active' if request.endpoint == 'tools_page' }}">Dependencies</a>
+            <a href="{{ url_for('settings.settings') }}" class="{{ 'active' if request.endpoint == 'settings.settings' }}">Advanced Settings</a>
+          </div>
+        </div>
       </nav>
 
       <div class="sidebar-foot">
@@ -102,6 +114,34 @@
   <script src="{{ url_for('static', filename='vendor/html2canvas.min.js') }}"></script>
   <script src="{{ url_for('static', filename='js/screenshot.js') }}"></script>
   <script>document.addEventListener('DOMContentLoaded', function () { ZCPersist.autoForm(); });</script>
+  <script>
+  // accordion sidebar — only one section open at a time; the active section
+  // (or the last one you opened) is expanded, the rest collapse.
+  (function () {
+    const KEY = 'zc-nav-open';
+    const groups = document.querySelectorAll('.nav-group');
+    groups.forEach(function (g) { g.classList.add('collapsed'); });
+
+    let open = [].find.call(groups, function (g) { return g.querySelector('a.active'); });
+    if (!open) {
+      let last = null;
+      try { last = localStorage.getItem(KEY); } catch (e) {}
+      open = document.querySelector('.nav-group[data-g="' + last + '"]');
+    }
+    if (open) open.classList.remove('collapsed');
+
+    groups.forEach(function (g) {
+      g.querySelector('.nav-group-head').addEventListener('click', function () {
+        const wasOpen = !g.classList.contains('collapsed');
+        groups.forEach(function (x) { x.classList.add('collapsed'); });
+        if (!wasOpen) {
+          g.classList.remove('collapsed');
+          try { localStorage.setItem(KEY, g.dataset.g); } catch (e) {}
+        }
+      });
+    });
+  })();
+  </script>
   <script>
   // ---- resizable multi-tab quick terminal (persists across navigations) ----
   // State (tab list + each tab's job ids) is saved to localStorage. On every
