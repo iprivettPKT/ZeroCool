@@ -8,6 +8,29 @@
     automatically the first time a command needs them. Downloaded into <code>{{ status.tools_dir }}</code>.</p>
 </header>
 
+{% set pr = status.prereqs %}
+<div class="prereq-banner">
+  {% if pr.root %}
+    <div class="pq ok">✔ Running as root — <code>sudo</code> is stripped from install commands automatically.</div>
+  {% elif pr.sudo_nopasswd %}
+    <div class="pq ok">✔ Passwordless sudo detected — apt/gem installs should work.</div>
+  {% else %}
+    <div class="pq warn">⚠ Not root, and <code>sudo</code> needs a password. The installer runs with no terminal, so
+      <b>apt/gem installs will fail here</b>. Start ZeroCool as root (<code>sudo python3 app.py</code>) or run those
+      commands in a terminal. pipx/go/curl installs that don't need sudo still work.</div>
+  {% endif %}
+  {% if not pr.pipx %}<div class="pq warn">⚠ <code>pipx</code> not found — pipx installs will fail. Get it: <code>{{ '' if pr.root else 'sudo ' }}apt install -y pipx && pipx ensurepath</code></div>{% endif %}
+  {% if not pr.go %}<div class="pq warn">⚠ <code>go</code> not found — go-based tools (subfinder, gowitness, azurehound) won't build.</div>{% endif %}
+</div>
+
+<div class="dep-actions">
+  <button id="install-all" class="btn primary sm">Install all missing</button>
+  <button id="fetch-all" class="btn sm">Fetch all scripts</button>
+  {% if pr.root or pr.sudo_nopasswd %}<button id="apt-update" class="btn ghost sm">apt-get update</button>{% endif %}
+  <button id="recheck" class="btn ghost sm">Re-check status</button>
+  <span id="dep-msg" class="muted small"></span>
+</div>
+
 <section>
   <h2 class="sec-h">Standalone scripts <span class="muted">(auto-fetched on demand)</span></h2>
   <table class="dep-table">
@@ -26,21 +49,20 @@
 </section>
 
 <section>
-  <h2 class="sec-h">Packaged tools <span class="muted">(apt / pipx / gem)</span></h2>
+  <h2 class="sec-h">Packaged tools <span class="muted">(apt / pipx / gem / go)</span></h2>
   <table class="dep-table">
     <thead><tr><th>Tool</th><th>Status</th><th>Install command</th><th></th></tr></thead>
     <tbody>
       {% for p in status.packages %}
-      <tr>
+      <tr data-pkg="{{ p.name }}">
         <td><code>{{ p.name }}</code><div class="muted small">{{ p.label }}</div></td>
-        <td>{% if p.installed %}<span class="badge badge-finished">installed</span>{% else %}<span class="badge badge-failed">missing</span>{% endif %}</td>
+        <td class="st">{% if p.installed %}<span class="badge badge-finished">installed</span>{% else %}<span class="badge badge-failed">missing</span>{% endif %}</td>
         <td><code class="small">{{ p.install }}</code></td>
-        <td><button type="button" class="btn ghost sm install-btn" data-cmd="{{ p.install }}">Install</button></td>
+        <td><button type="button" class="btn ghost sm install-btn" data-cmd="{{ p.install }}" data-pkg="{{ p.name }}">Install</button></td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
-  <p class="hint">Installs run as the current user — apt/gem steps may need ZeroCool started with sudo.</p>
 </section>
 
 <div class="terminal" id="terminal">
@@ -56,36 +78,82 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/zeroterm.js') }}"></script>
 <script>
-const term = ZeroTerm.attach(document.getElementById('terminal'));
+const term = ZeroTerm.attach(document.getElementById('terminal'), { clearOnRun: false });
+const msg = document.getElementById('dep-msg');
+const IS_ROOT = {{ 'true' if status.prereqs.root else 'false' }};
+const APT_UPDATE = (IS_ROOT ? '' : 'sudo ') + 'apt-get update';
 
-// Fetch a standalone script via the dedicated endpoint, then update its row.
-document.querySelectorAll('.fetch-btn').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    const name = btn.dataset.name;
-    btn.disabled = true; btn.textContent = 'Fetching…';
-    try {
-      const resp = await fetch('/tools/fetch/' + encodeURIComponent(name), {method: 'POST'});
-      const data = await resp.json();
-      const row = document.querySelector('tr[data-name="' + name + '"]');
-      if (data.ok) {
-        row.querySelector('.st').innerHTML = '<span class="badge badge-finished">installed</span>';
-        row.querySelector('.loc').textContent = data.path;
-        btn.textContent = 'Re-fetch';
-      } else {
-        btn.textContent = 'Failed';
-        row.querySelector('.loc').textContent = data.error || 'fetch failed';
-      }
-    } catch (e) {
-      btn.textContent = 'Error';
-    } finally {
-      btn.disabled = false;
-    }
+function badge(installed) {
+  return installed ? '<span class="badge badge-finished">installed</span>'
+                   : '<span class="badge badge-failed">missing</span>';
+}
+
+// Re-check every tool's status and repaint the rows.
+async function refreshStatus() {
+  let d; try { d = await (await fetch('/tools/status')).json(); } catch (e) { return; }
+  d.scripts.forEach(s => {
+    const row = document.querySelector('tr[data-name="' + CSS.escape(s.name) + '"]');
+    if (row) { row.querySelector('.st').innerHTML = badge(s.installed); row.querySelector('.loc').textContent = s.path || '—'; }
   });
+  d.packages.forEach(p => {
+    const row = document.querySelector('tr[data-pkg="' + CSS.escape(p.name) + '"]');
+    if (row) row.querySelector('.st').innerHTML = badge(p.installed);
+  });
+}
+
+// After any install job finishes, re-check status and report the outcome.
+term.onState(s => {
+  if (s === 'finished') { msg.textContent = 'done — re-checking…'; refreshStatus(); }
+  else if (s === 'failed' || s === 'killed') { msg.textContent = 'install exited with an error — see the output below'; refreshStatus(); }
 });
 
-// Run an install command through the shared runner / terminal.
-document.querySelectorAll('.install-btn').forEach(btn => {
-  btn.addEventListener('click', () => term.run(btn.dataset.cmd, ''));
+// Fetch a standalone script.
+async function fetchScript(name, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Fetching…'; }
+  try {
+    const data = await (await fetch('/tools/fetch/' + encodeURIComponent(name), {method: 'POST'})).json();
+    const row = document.querySelector('tr[data-name="' + CSS.escape(name) + '"]');
+    if (data.ok) {
+      row.querySelector('.st').innerHTML = badge(true);
+      row.querySelector('.loc').textContent = data.path;
+      if (btn) btn.textContent = 'Re-fetch';
+    } else {
+      row.querySelector('.loc').textContent = data.error || 'fetch failed';
+      if (btn) btn.textContent = 'Failed';
+    }
+  } catch (e) { if (btn) btn.textContent = 'Error'; }
+  finally { if (btn) btn.disabled = false; }
+}
+
+document.querySelectorAll('.fetch-btn').forEach(btn =>
+  btn.addEventListener('click', () => fetchScript(btn.dataset.name, btn)));
+
+document.querySelectorAll('.install-btn').forEach(btn =>
+  btn.addEventListener('click', () => { msg.textContent = 'installing ' + btn.dataset.pkg + '…'; term.run(btn.dataset.cmd, ''); }));
+
+// Bulk: install every missing packaged tool (sequential, continue on error).
+document.getElementById('install-all').addEventListener('click', () => {
+  const cmds = [...document.querySelectorAll('tr[data-pkg]')]
+    .filter(r => r.querySelector('.badge-failed'))
+    .map(r => r.querySelector('.install-btn').dataset.cmd);
+  if (!cmds.length) { msg.textContent = 'nothing missing 🎉'; return; }
+  msg.textContent = 'installing ' + cmds.length + ' tool(s)…';
+  term.run('echo "[zerocool] installing ' + cmds.length + ' missing tools..."; ' + cmds.join(' ; '), '');
 });
+
+// Bulk: fetch every missing script.
+document.getElementById('fetch-all').addEventListener('click', async () => {
+  const names = [...document.querySelectorAll('tr[data-name]')]
+    .filter(r => r.querySelector('.badge-failed'))
+    .map(r => r.dataset.name);
+  if (!names.length) { msg.textContent = 'all scripts present'; return; }
+  msg.textContent = 'fetching ' + names.length + ' script(s)…';
+  for (const n of names) await fetchScript(n, document.querySelector('tr[data-name="' + CSS.escape(n) + '"] .fetch-btn'));
+  msg.textContent = 'done fetching scripts';
+});
+
+const aptBtn = document.getElementById('apt-update');
+if (aptBtn) aptBtn.addEventListener('click', () => { msg.textContent = 'updating apt index…'; term.run(APT_UPDATE, ''); });
+document.getElementById('recheck').addEventListener('click', () => { msg.textContent = 're-checking…'; refreshStatus().then(() => msg.textContent = 'status refreshed'); });
 </script>
 {% endblock %}

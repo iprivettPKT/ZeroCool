@@ -184,6 +184,60 @@ def install_command(binary: str) -> str | None:
     return None
 
 
+# --------------------------------------------------------------------------
+# install environment adaptation
+# --------------------------------------------------------------------------
+
+def is_root() -> bool:
+    return hasattr(os, "geteuid") and os.geteuid() == 0
+
+
+_sudo_ok = None
+
+
+def can_sudo_nopasswd() -> bool:
+    """True if sudo works without a password (cached). The runner has no TTY,
+    so a sudo that needs a password would fail — we use this to warn up front."""
+    global _sudo_ok
+    if _sudo_ok is None:
+        if is_root() or not shutil.which("sudo"):
+            _sudo_ok = is_root()
+        else:
+            import subprocess
+            try:
+                _sudo_ok = subprocess.run(
+                    ["sudo", "-n", "true"], capture_output=True, timeout=5).returncode == 0
+            except (OSError, subprocess.SubprocessError):
+                _sudo_ok = False
+    return _sudo_ok
+
+
+def adapt_command(cmd: str) -> str:
+    """Adapt an install command to the runtime: drop sudo when already root and
+    make apt non-interactive so installs don't hang waiting on a prompt."""
+    if not cmd:
+        return cmd
+    if is_root():
+        cmd = cmd.replace("sudo ", "")
+    if "apt-get install" in cmd and "DEBIAN_FRONTEND" not in cmd:
+        cmd = cmd.replace("apt-get install", "DEBIAN_FRONTEND=noninteractive apt-get install")
+    return cmd
+
+
+def prereqs() -> dict:
+    """What's available for installing things, so the UI can warn proactively."""
+    return {
+        "root": is_root(),
+        "sudo_nopasswd": can_sudo_nopasswd(),
+        "pipx": bool(shutil.which("pipx")),
+        "go": bool(shutil.which("go")),
+        "gem": bool(shutil.which("gem")),
+        "apt": bool(shutil.which("apt-get")),
+        "git": bool(shutil.which("git")),
+        "curl": bool(shutil.which("curl")),
+    }
+
+
 def fetch_script(name: str, timeout: int = 25) -> dict:
     """Download a known script into tools/ and make it executable."""
     spec = SCRIPTS.get(name)
@@ -221,7 +275,7 @@ def prepare(command: str) -> dict:
             else:
                 messages.append(f"[zerocool] could not fetch {binary}: {result.get('error')}")
         else:
-            hint = install_command(binary)
+            hint = adapt_command(install_command(binary))
             if hint:
                 messages.append(f"[zerocool] {binary} not found — install it from the Dependencies page or run: {hint}")
             else:
@@ -243,7 +297,8 @@ def status_all() -> dict:
     for name, spec in PACKAGES.items():
         loc = locate(name)
         packages.append({
-            "name": name, "label": spec["label"], "install": spec["install"],
+            "name": name, "label": spec["label"], "install": adapt_command(spec["install"]),
             "installed": bool(loc), "path": loc or "",
         })
-    return {"scripts": scripts, "packages": packages, "tools_dir": TOOLS_DIR}
+    return {"scripts": scripts, "packages": packages, "tools_dir": TOOLS_DIR,
+            "prereqs": prereqs()}
