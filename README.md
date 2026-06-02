@@ -6,9 +6,10 @@
 
 A web-based control panel for professional penetration testing engagements,
 built with Flask. Named after the hacker from *Hackers* (1995). ZeroCool gives
-you a single GUI over the whole engagement workflow — recon, Active Directory,
-web, privilege escalation, shells, pivoting, file transfer and reporting — all
-driven by one shared engagement profile, with every command logged.
+you a single GUI over the whole engagement workflow — recon, network mapping,
+Active Directory, web, cloud, privilege escalation, shells, pivoting, file
+transfer and reporting — all driven by one shared engagement profile, with
+every command logged.
 
 ---
 
@@ -21,9 +22,11 @@ driven by one shared engagement profile, with every command logged.
 | **Activity Log** | Every command ever run, with full output, status and exit code (audit trail). |
 | **Dependencies** | Status of required tools; auto-fetch missing scripts, one-click install of packaged tools. |
 | **Recon & Scanning** | Build & run nmap from your scope/targets (profiles, detection, timing); saves `-oA` output. |
-| **Scan Results** | Parses nmap XML into a hosts/services view; promote hosts to targets; jump into AD/Web. |
-| **Active Directory** | 50+ actions — enumeration, Kerberos (AS-REP/Kerberoast/S4U/ticketer), secrets/DCSync, BloodHound, lateral movement, coercion (PetitPotam/PrinterBug/DFSCoerce/ShadowCoerce/ntlmrelayx), ADCS/Certipy. |
+| **Scan Results** | Parses nmap XML (incl. NSE script output) into a hosts/services view; promote hosts to targets; jump into AD/Web. |
+| **Network Map** | Interactive graph (Cytoscape.js) of the discovered network — topology (attacker → subnet → host, coloured by role) and a services view, with per-host quick-links. |
+| **Active Directory** | 100+ actions — enumeration, Kerberos (AS-REP/Kerberoast/S4U/ticketer), secrets/DCSync, an extensive NetExec catalog (DPAPI, lsassy, GPP, LAPS, gMSA, WebDAV, exec, file transfer…), BloodHound, lateral movement, coercion (PetitPotam/PrinterBug/DFSCoerce/ShadowCoerce/ntlmrelayx), ADCS/Certipy, and a large set of vuln/misconfig checks. |
 | **Web** | ffuf / feroxbuster / gobuster / dirsearch / whatweb / nuclei / nikto / wpscan / sqlmap / gowitness, driven by URL + wordlist. |
+| **Cloud Recon** | AWS / Azure / GCP / M365-Entra / multi-cloud enumeration (ScoutSuite, Prowler, AzureHound, ROADrecon, cloud_enum, S3Scanner, o365spray, subfinder…) from a keyword + domain. |
 | **Privilege Escalation** | Linux & Windows technique catalog (LinPEAS/WinPEAS/PowerUp, SUID/sudo/caps, Potato, AlwaysInstallElevated, …) with stage-and-serve helpers. |
 | **Reverse Shells** | Multi-session TCP handler with an xterm.js console, PTY upgrade and raw interactive mode; reverse-shell payload generator. |
 | **Pivoting & Tunnels** | Chisel / Ligolo-ng / SSH (-L/-R/-D) / sshuttle / socat recipes, plus a proxychains config that the AD/Web modules can route through. |
@@ -33,8 +36,8 @@ driven by one shared engagement profile, with every command logged.
 Cross-cutting niceties:
 
 - **Auth handling** — password / pass-the-hash / Kerberos formatted correctly per tool family.
-- **Send → session** — fire any built AD / privesc / web command straight into a caught reverse shell.
-- **proxychains** — route AD and Web commands through a pivot's SOCKS proxy.
+- **Send → session** — fire any built AD / web / cloud / privesc command straight into a caught reverse shell.
+- **proxychains** — route AD, Web and Cloud commands through a pivot's SOCKS proxy.
 - **Auto-provisioning** — missing standalone scripts (coercion, LinPEAS, …) are fetched on demand; packaged tools get an install command.
 - **Persistence** — module selections, form options, the terminal output and the resizable multi-tab quick-terminal drawer all survive navigation and browser restarts.
 
@@ -45,8 +48,9 @@ Cross-cutting niceties:
 - Python 3.10+
 - Flask 3.x (`pip install -r requirements.txt`)
 - The pentest tooling you intend to drive (nmap, NetExec, impacket, certipy,
-  ffuf, etc.) — typically already present on Kali. The **Dependencies** page
-  shows what's installed and how to get the rest.
+  ffuf, etc.) — typically already present on Kali. Cloud recon additionally
+  uses the relevant CLIs (aws / az / gcloud) and tools like ScoutSuite. The
+  **Dependencies** page shows what's installed and how to get the rest.
 
 ## Run
 
@@ -72,15 +76,17 @@ runner.py         command execution engine + activity log + tool auto-fetch
 tools.py          dependency registry, script fetcher, proxychains config
 parser.py         nmap XML parser (hosts/services + NSE output)
 recon.py          nmap command builder
+netmap.py         network map / graph builder
 ad.py             Active Directory catalog
 web.py            web testing catalog
+cloud.py          cloud recon catalog (AWS/Azure/GCP/M365)
 privesc.py        privilege escalation catalog
 pivot.py          tunnelling recipes + proxychains
 sessions.py       reverse-shell listeners + sessions
 fileserver.py     managed HTTP file server
 reporting.py      findings, detections, report export
 templates/        Jinja templates
-static/           CSS, JS (incl. vendored xterm.js)
+static/           CSS, JS (incl. vendored xterm.js + cytoscape.js)
 ```
 
 Runtime data (engagement, findings, job output, fetched tools) lives under
