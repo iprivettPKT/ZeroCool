@@ -31,6 +31,7 @@ import tools
 from ad import ad_bp
 from cloud import cloud_bp
 from creds import creds_bp
+from db import db_bp
 from fileserver import files_bp
 from netmap import netmap_bp
 from parser import results_bp
@@ -61,6 +62,7 @@ app.register_blueprint(settings_bp)
 app.register_blueprint(creds_bp)
 app.register_blueprint(payloads_bp)
 app.register_blueprint(spray_bp)
+app.register_blueprint(db_bp)
 
 
 @app.context_processor
