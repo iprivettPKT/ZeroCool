@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %} — Engagement{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <h1>Engagement</h1>
+  <p class="muted">Everything here feeds the command modules. Fill in what you have — you can come back any time.</p>
+</header>
+
+<form method="post" class="form" data-no-persist>
+
+  <fieldset>
+    <legend>Identification</legend>
+    <div class="field-grid">
+      <label>Engagement name
+        <input type="text" name="engagement_name" value="{{ eng.engagement_name }}" placeholder="ACME External 2026">
+      </label>
+      <label>Client
+        <input type="text" name="client" value="{{ eng.client }}" placeholder="ACME Corp">
+      </label>
+    </div>
+    <label>Notes
+      <textarea name="notes" rows="2" placeholder="Rules of engagement, timing windows, contacts…">{{ eng.notes }}</textarea>
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Scope &amp; targets</legend>
+    <p class="hint">One entry per line (CIDR, range, IP, or hostname). Commas also work.</p>
+    <div class="field-grid">
+      <label>In-scope ranges
+        <textarea name="scope" rows="5" placeholder="10.10.0.0/24&#10;192.168.1.0/24">{{ eng.scope|join('\n') }}</textarea>
+      </label>
+      <label>Out-of-scope (exclusions)
+        <textarea name="out_of_scope" rows="5" placeholder="10.10.0.1&#10;10.10.0.254">{{ eng.out_of_scope|join('\n') }}</textarea>
+      </label>
+    </div>
+    <label>Specific targets
+      <textarea name="targets" rows="4" placeholder="10.10.0.10&#10;fileserver.corp.local">{{ eng.targets|join('\n') }}</textarea>
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Active Directory</legend>
+    <div class="field-grid">
+      <label>Domain
+        <input type="text" name="domain" value="{{ eng.domain }}" placeholder="corp.local">
+      </label>
+      <label>DC IP
+        <input type="text" name="dc_ip" value="{{ eng.dc_ip }}" placeholder="10.10.0.5">
+      </label>
+      <label>DC hostname
+        <input type="text" name="dc_hostname" value="{{ eng.dc_hostname }}" placeholder="DC01">
+      </label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Attacker context</legend>
+    <div class="field-grid">
+      <label>Interface
+        <input type="text" name="interface" value="{{ eng.interface }}" placeholder="eth0 / tun0">
+      </label>
+      <label>Attacker IP
+        <input type="text" name="attacker_ip" value="{{ eng.attacker_ip }}" placeholder="10.10.14.7">
+      </label>
+      <label>Output / loot dir
+        <input type="text" name="output_dir" value="{{ eng.output_dir }}" placeholder="/home/kali/engagements/acme">
+      </label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Credentials</legend>
+    <p class="hint">Add discovered or provided creds. Password and/or NTLM hash — leave blank what you don't have.</p>
+    <table class="cred-table" id="cred-table">
+      <thead>
+        <tr><th>Domain</th><th>Username</th><th>Password</th><th>NTLM hash</th><th>Notes</th><th></th></tr>
+      </thead>
+      <tbody id="cred-body">
+        {% for c in eng.credentials %}
+        <tr>
+          <td><input type="text" name="cred_domain" value="{{ c.domain }}"></td>
+          <td><input type="text" name="cred_username" value="{{ c.username }}"></td>
+          <td><input type="text" name="cred_password" value="{{ c.password }}"></td>
+          <td><input type="text" name="cred_hash" value="{{ c.ntlm_hash }}"></td>
+          <td><input type="text" name="cred_notes" value="{{ c.notes }}"></td>
+          <td><button type="button" class="btn-icon" onclick="this.closest('tr').remove()">✕</button></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <button type="button" class="btn ghost" onclick="addCredRow()">+ Add credential</button>
+  </fieldset>
+
+  <div class="form-actions">
+    <button type="submit" class="btn primary">Save engagement</button>
+  </div>
+</form>
+
+<template id="cred-row-template">
+  <tr>
+    <td><input type="text" name="cred_domain"></td>
+    <td><input type="text" name="cred_username"></td>
+    <td><input type="text" name="cred_password"></td>
+    <td><input type="text" name="cred_hash"></td>
+    <td><input type="text" name="cred_notes"></td>
+    <td><button type="button" class="btn-icon" onclick="this.closest('tr').remove()">✕</button></td>
+  </tr>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function addCredRow() {
+    const tpl = document.getElementById('cred-row-template');
+    document.getElementById('cred-body').appendChild(tpl.content.cloneNode(true));
+  }
+</script>
+{% endblock %}

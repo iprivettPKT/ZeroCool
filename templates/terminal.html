@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %} — Terminal{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <h1>Terminal</h1>
+  <p class="muted">Run commands directly. Output streams live and is saved to the
+    <a href="{{ url_for('activity') }}">Activity Log</a>.</p>
+</header>
+
+{% if quick %}
+<div class="quick-bar">
+  <span class="quick-label">Quick:</span>
+  {% for q in quick %}
+    <button type="button" class="chip chip-btn"
+            data-cmd="{{ q.command }}" title="{{ q.command }}">{{ q.label }}</button>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="term-controls">
+  <label class="cwd-field">cwd
+    <input type="text" id="cwd" value="{{ default_cwd }}" placeholder="~ (working directory)">
+  </label>
+  <div class="cmd-row">
+    <span class="prompt">zerocool&nbsp;$</span>
+    <input type="text" id="command" class="cmd-input" autocomplete="off" spellcheck="false"
+           placeholder="e.g. nmap -sn 10.10.0.0/24">
+    <button id="run-btn" class="btn primary">Run</button>
+    <button id="kill-btn" class="btn" disabled>Stop</button>
+  </div>
+</div>
+
+<div class="terminal" id="terminal">
+  <div class="term-head">
+    <span class="dot red"></span><span class="dot amber"></span><span class="dot green"></span>
+    <span data-term-status class="term-status status-idle">idle</span>
+    <span data-term-cmd class="term-cmd"></span>
+  </div>
+  <pre data-term-output class="term-output"></pre>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/zeroterm.js') }}"></script>
+<script>
+const term = ZeroTerm.attach(document.getElementById('terminal'));
+const runBtn = document.getElementById('run-btn');
+const killBtn = document.getElementById('kill-btn');
+const cmdInput = document.getElementById('command');
+const cwdInput = document.getElementById('cwd');
+
+term.onState((s) => {
+  const running = s === 'running';
+  runBtn.disabled = running;
+  killBtn.disabled = !running;
+});
+
+function runCommand() { term.run(cmdInput.value, cwdInput.value); }
+
+runBtn.addEventListener('click', runCommand);
+killBtn.addEventListener('click', () => term.kill());
+cmdInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); runCommand(); }
+});
+document.querySelectorAll('.chip-btn').forEach((b) => {
+  b.addEventListener('click', () => { cmdInput.value = b.dataset.cmd; cmdInput.focus(); });
+});
+cmdInput.focus();
+
+// Persist the last command's output across navigations.
+term.onRun((jid) => ZCPersist.save('term-job', jid));
+(function () { const j = ZCPersist.load('term-job', null); if (j) term.attachJob(j); })();
+</script>
+{% endblock %}

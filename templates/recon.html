@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %} — Recon{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <h1>Recon &amp; Scanning</h1>
+  <p class="muted">Build an nmap scan from your engagement. Output streams live and saves to the
+    <a href="{{ url_for('activity') }}">Activity Log</a>{% if eng.output_dir %} and <code>{{ eng.output_dir }}/nmap/</code>{% endif %}.</p>
+</header>
+
+<div class="recon-grid">
+  <form id="recon-form" class="form recon-form">
+    <fieldset>
+      <legend>Targets</legend>
+      {% set prefill = request.args.get('target', '') %}
+      <label class="radio">
+        <input type="radio" name="source" value="scope" {{ '' if prefill else 'checked' }}>
+        In-scope ranges <span class="muted">({{ eng.scope|length }})</span>
+      </label>
+      <label class="radio">
+        <input type="radio" name="source" value="targets">
+        Specific targets <span class="muted">({{ eng.targets|length }})</span>
+      </label>
+      <label class="radio">
+        <input type="radio" name="source" value="custom" {{ 'checked' if prefill }}>
+        Custom
+      </label>
+      <textarea name="custom_targets" rows="3" placeholder="10.10.0.10&#10;host.corp.local"
+                class="{{ '' if prefill else 'hidden' }}" id="custom-targets">{{ prefill }}</textarea>
+    </fieldset>
+
+    <fieldset>
+      <legend>Scan profile</legend>
+      <label>Profile
+        <select name="profile" id="profile">
+          {% for key, p in profiles.items() %}
+            <option value="{{ key }}" {{ 'selected' if key == 'top1000' }}>{{ p.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="hidden" id="ports-field">Custom ports
+        <input type="text" name="ports" placeholder="22,80,443,8000-8100">
+      </label>
+      <label>Timing
+        <select name="timing">
+          {% for t in ['0','1','2','3','4','5'] %}
+            <option value="{{ t }}" {{ 'selected' if t == '4' }}>-T{{ t }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </fieldset>
+
+    <fieldset id="detection">
+      <legend>Detection</legend>
+      <label class="check"><input type="checkbox" name="sV"> Service / version (-sV)</label>
+      <label class="check"><input type="checkbox" name="sC"> Default scripts (-sC)</label>
+      <label class="check"><input type="checkbox" name="osdetect"> OS detection (-O)</label>
+      <label class="check"><input type="checkbox" name="udp"> UDP scan (-sU)</label>
+      <label class="check"><input type="checkbox" name="vuln"> Vuln scripts (--script vuln)</label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Output &amp; extras</legend>
+      <label>Scan name <input type="text" name="name" value="scan" placeholder="scan"></label>
+      <label>Extra flags <input type="text" name="extra" placeholder="--open --reason"></label>
+      <label class="check"><input type="checkbox" name="proxychains"> via proxychains{% if eng.socks_proxy %} <span class="muted">({{ eng.socks_proxy }})</span>{% endif %} — forces <code>-sT -Pn</code></label>
+    </fieldset>
+  </form>
+
+  <div class="recon-side">
+    <div class="preview-box">
+      <div class="preview-head">
+        <span>Command preview</span>
+        <span id="target-count" class="muted"></span>
+      </div>
+      <pre id="cmd-preview" class="cmd-preview">nmap …</pre>
+      <div id="warnings" class="warnings"></div>
+      <div class="preview-actions">
+        <button id="run-btn" class="btn primary">Run scan</button>
+        <button id="kill-btn" class="btn" disabled>Stop</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="terminal" id="terminal">
+  <div class="term-head">
+    <span class="dot red"></span><span class="dot amber"></span><span class="dot green"></span>
+    <span data-term-status class="term-status status-idle">idle</span>
+    <span data-term-cmd class="term-cmd"></span>
+  </div>
+  <pre data-term-output class="term-output"></pre>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/zeroterm.js') }}"></script>
+<script>
+const form = document.getElementById('recon-form');
+const preview = document.getElementById('cmd-preview');
+const warnings = document.getElementById('warnings');
+const targetCount = document.getElementById('target-count');
+const runBtn = document.getElementById('run-btn');
+const killBtn = document.getElementById('kill-btn');
+const term = ZeroTerm.attach(document.getElementById('terminal'));
+
+const OUTPUT_DIR = {{ (eng.output_dir or '')|tojson }};
+let currentCommand = '';
+let hasTargets = false;
+let running = false;
+
+// Show/hide conditional fields.
+function syncFields() {
+  const profile = document.getElementById('profile').value;
+  document.getElementById('ports-field').classList.toggle('hidden', profile !== 'custom');
+  const source = form.querySelector('input[name=source]:checked').value;
+  document.getElementById('custom-targets').classList.toggle('hidden', source !== 'custom');
+  // Detection is irrelevant for pure host discovery.
+  document.getElementById('detection').style.opacity = profile === 'discovery' ? 0.4 : 1;
+}
+
+function formData() {
+  const fd = new FormData(form);
+  const obj = {};
+  for (const [k, v] of fd.entries()) obj[k] = v;
+  // Checkboxes: present means on.
+  ['sV','sC','osdetect','udp','vuln','proxychains'].forEach(k => { obj[k] = form.elements[k].checked; });
+  return obj;
+}
+
+let debounce = null;
+function refresh() {
+  syncFields();
+  clearTimeout(debounce);
+  debounce = setTimeout(async () => {
+    try {
+      const resp = await fetch('{{ url_for("recon.recon_build") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(formData()),
+      });
+      const data = await resp.json();
+      currentCommand = data.command;
+      hasTargets = (data.targets || []).length > 0;
+      preview.textContent = data.command;
+      targetCount.textContent = (data.targets || []).length + ' target(s)';
+      warnings.innerHTML = '';
+      (data.warnings || []).forEach(w => {
+        const d = document.createElement('div');
+        d.className = 'warn';
+        d.textContent = '⚠ ' + w;
+        warnings.appendChild(d);
+      });
+      updateRunBtn();
+    } catch (e) { /* ignore preview errors */ }
+  }, 200);
+}
+
+function updateRunBtn() {
+  runBtn.disabled = running || !hasTargets;
+}
+
+term.onState((s) => {
+  running = (s === 'running');
+  killBtn.disabled = !running;
+  updateRunBtn();
+});
+
+runBtn.addEventListener('click', () => {
+  if (!hasTargets || running) return;
+  term.run(currentCommand, OUTPUT_DIR);
+});
+killBtn.addEventListener('click', () => term.kill());
+
+form.addEventListener('change', refresh);
+form.addEventListener('input', refresh);
+refresh();
+</script>
+{% endblock %}

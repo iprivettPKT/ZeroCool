@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %} — Dashboard{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <h1>Dashboard</h1>
+  <p class="muted">Operational overview of the current engagement.</p>
+</header>
+
+<section class="grid">
+  <div class="card">
+    <h2>Engagement</h2>
+    {% if eng.engagement_name %}
+      <dl class="kv">
+        <dt>Name</dt><dd>{{ eng.engagement_name }}</dd>
+        <dt>Client</dt><dd>{{ eng.client or '—' }}</dd>
+        <dt>Domain</dt><dd>{{ eng.domain or '—' }}</dd>
+        <dt>DC</dt><dd>{{ eng.dc_hostname or '—' }} {% if eng.dc_ip %}({{ eng.dc_ip }}){% endif %}</dd>
+      </dl>
+    {% else %}
+      <p class="muted">No engagement configured yet.</p>
+    {% endif %}
+    <a class="btn" href="{{ url_for('engagement') }}">Edit engagement</a>
+  </div>
+
+  <div class="card">
+    <h2>Setup checklist</h2>
+    <ul class="checklist">
+      {% for label, done in checklist %}
+        <li class="{{ 'done' if done }}">
+          <span class="tick">{{ '✔' if done else '○' }}</span>{{ label }}
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Scope</h2>
+    <div class="stat-row">
+      <div class="stat"><span class="num">{{ eng.scope|length }}</span><span class="lbl">in-scope</span></div>
+      <div class="stat"><span class="num">{{ eng.out_of_scope|length }}</span><span class="lbl">excluded</span></div>
+      <div class="stat"><span class="num">{{ eng.targets|length }}</span><span class="lbl">targets</span></div>
+      <div class="stat"><span class="num">{{ eng.credentials|length }}</span><span class="lbl">creds</span></div>
+    </div>
+    {% if eng.scope %}
+      <div class="chips">
+        {% for c in eng.scope %}<span class="chip">{{ c }}</span>{% endfor %}
+      </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

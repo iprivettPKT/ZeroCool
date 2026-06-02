@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block title %} — Reverse Shells{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}">
+{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <h1>Reverse Shells</h1>
+  <p class="muted">Catch multiple shells at once. Upgrade a dumb shell to a full PTY, then flip to
+    Interactive for Tab-complete, Ctrl-C, vim, sudo, ssh.{% if eng.attacker_ip %} Your IP: <code>{{ eng.attacker_ip }}</code>.{% endif %}</p>
+</header>
+
+<div class="shells-top">
+  <form id="listen-form" class="inline-form">
+    <span class="prompt">listen on</span>
+    <input type="number" id="listen-port" value="4444" min="1" max="65535" class="port-in">
+    <button type="submit" class="btn primary sm">Start listener</button>
+    <span id="listen-msg" class="muted small"></span>
+  </form>
+
+  <details class="payloads">
+    <summary>Reverse-shell payloads (set your port)</summary>
+    <div class="pl-portrow">
+      <span class="muted small">attacker IP</span>
+      <input type="text" id="pl-ip" value="{{ eng.attacker_ip }}" placeholder="10.10.14.7" class="port-in wide">
+      <span class="muted small">port</span>
+      <input type="number" id="pl-port" value="4444" class="port-in">
+    </div>
+    <div id="payloads">
+      {% for p in payloads %}
+        <div class="pl-row"><span class="pl-label">{{ p.label }}</span><code class="pl-cmd" data-tpl="{{ p.cmd }}">{{ p.cmd }}</code><button type="button" class="btn ghost xs pl-copy">copy</button></div>
+      {% endfor %}
+    </div>
+  </details>
+</div>
+
+<div class="shells-grid">
+  <div class="shells-side">
+    <h3 class="sec-h">Listeners</h3>
+    <div id="listeners" class="mini-list"><div class="muted small">none</div></div>
+    <h3 class="sec-h">Sessions</h3>
+    <div id="sessions" class="mini-list"><div class="muted small">no shells yet</div></div>
+  </div>
+
+  <div class="shells-main">
+    <div class="sess-toolbar">
+      <span id="sess-label" class="muted small">no session selected</span>
+      <span class="zc-spacer"></span>
+      <label class="check inline"><input type="checkbox" id="raw-toggle" disabled> Interactive (raw PTY)</label>
+      <select id="upgrade-sel" disabled title="spawn a PTY on the victim">
+        <option value="">PTY upgrade…</option>
+        {% for u in upgrades %}<option value="{{ u.cmd }}">{{ u.label }}</option>{% endfor %}
+      </select>
+      <button id="fix-term" class="btn ghost xs" disabled title="export TERM + stty rows/cols">Fix TERM+size</button>
+      <button id="sess-kill" class="btn ghost xs" disabled>kill</button>
+    </div>
+    <div id="xterm-host" class="xterm-host"></div>
+    <div class="sess-input-row" id="line-input-row">
+      <span class="prompt">»</span>
+      <input id="sess-input" class="cmd-input" placeholder="line mode — type a command, Enter to send" autocomplete="off" spellcheck="false" disabled>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/xterm-addon-fit.js') }}"></script>
+<script>
+const term = new Terminal({
+  convertEol: true, cursorBlink: true, scrollback: 5000,
+  fontFamily: '"JetBrains Mono","Fira Code",monospace', fontSize: 13,
+  theme: { background: '#050805', foreground: '#9dffb0', cursor: '#39ff14' },
+});
+const fit = new FitAddon.FitAddon();
+term.loadAddon(fit);
+term.open(document.getElementById('xterm-host'));
+try { fit.fit(); } catch (e) {}
+window.addEventListener('resize', () => { try { fit.fit(); } catch (e) {} });
+
+let es = null, currentSid = null, rawMode = false, restoredSession = false;
+const label = document.getElementById('sess-label');
+const rawToggle = document.getElementById('raw-toggle');
+const upgradeSel = document.getElementById('upgrade-sel');
+const fixBtn = document.getElementById('fix-term');
+const killBtn = document.getElementById('sess-kill');
+const lineInput = document.getElementById('sess-input');
+const lineRow = document.getElementById('line-input-row');
+
+// Raw keystrokes (interactive PTY mode): xterm.onData yields the exact control
+// byte sequences (Tab, Ctrl-C, arrows, …) — pass them straight to the socket.
+term.onData(d => {
+  if (rawMode && currentSid) {
+    fetch('/shells/raw/' + currentSid, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({data: d})
+    }).catch(() => {});
+  }
+});
+
+function setControls(enabled) {
+  rawToggle.disabled = !enabled; upgradeSel.disabled = !enabled;
+  fixBtn.disabled = !enabled; killBtn.disabled = !enabled; lineInput.disabled = !enabled;
+}
+
+function openSession(sid, addr) {
+  if (es) { es.close(); es = null; }
+  currentSid = sid;
+  ZCPersist.save('shells-sid', sid);
+  term.reset(); term.focus();
+  label.textContent = addr + '  ·  ' + sid;
+  label.className = 'term-status status-running';
+  setControls(true);
+  es = new EventSource('/shells/stream/' + sid);
+  es.onmessage = ev => {
+    const m = JSON.parse(ev.data);
+    if (m.type === 'data') term.write(m.text);
+    else if (m.type === 'closed') { label.className = 'term-status status-failed'; setControls(false); if (es) { es.close(); es = null; } }
+  };
+  es.onerror = () => { if (es) { es.close(); es = null; } };
+}
+
+rawToggle.addEventListener('change', () => {
+  rawMode = rawToggle.checked;
+  lineRow.style.display = rawMode ? 'none' : '';
+  if (rawMode) term.focus(); else lineInput.focus();
+});
+
+lineInput.addEventListener('keydown', async e => {
+  if (e.key !== 'Enter' || !currentSid) return;
+  e.preventDefault();
+  const data = lineInput.value; lineInput.value = '';
+  await fetch('/shells/send/' + currentSid, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({data})
+  }).catch(() => {});
+});
+
+// Spawn a PTY on the victim (sent as a normal command, echoed to the transcript).
+upgradeSel.addEventListener('change', async () => {
+  const cmd = upgradeSel.value; upgradeSel.value = '';
+  if (!cmd || !currentSid) return;
+  await fetch('/shells/send/' + currentSid, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({data: cmd})
+  }).catch(() => {});
+});
+
+// Set TERM + terminal size on the remote PTY (raw, so it runs cleanly in the pty).
+fixBtn.addEventListener('click', async () => {
+  if (!currentSid) return;
+  try { fit.fit(); } catch (e) {}
+  const cmd = `export TERM=xterm-256color; stty rows ${term.rows} cols ${term.cols}\n`;
+  await fetch('/shells/raw/' + currentSid, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({data: cmd})
+  }).catch(() => {});
+});
+
+killBtn.addEventListener('click', async () => {
+  if (currentSid) await fetch('/shells/kill/' + currentSid, {method: 'POST'}).catch(() => {});
+});
+
+// ---- listeners / sessions / payloads ----
+document.getElementById('listen-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const port = document.getElementById('listen-port').value;
+  const msg = document.getElementById('listen-msg'); msg.textContent = 'starting…';
+  try {
+    const r = await fetch('/shells/listen', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({port})});
+    const d = await r.json();
+    msg.textContent = r.ok ? ('listening on ' + d.port) : ('error: ' + (d.error || r.status));
+  } catch (err) { msg.textContent = 'error'; }
+  loadState();
+});
+
+async function stopListener(lid) { await fetch('/shells/stop/' + lid, {method: 'POST'}).catch(() => {}); loadState(); }
+
+async function loadState() {
+  let d; try { d = await (await fetch('/shells/state')).json(); } catch (e) { return; }
+  const L = document.getElementById('listeners');
+  L.innerHTML = d.listeners.length ? '' : '<div class="muted small">none</div>';
+  d.listeners.forEach(l => {
+    const row = document.createElement('div'); row.className = 'mini-row';
+    row.innerHTML = '<span class="badge badge-' + (l.status === 'listening' ? 'running' : (l.status === 'error' ? 'failed' : 'pending')) + '">' + l.status + '</span> :' + l.port + ' <span class="muted small">' + l.sessions + ' live</span>';
+    const btn = document.createElement('button'); btn.className = 'btn ghost xs'; btn.textContent = 'stop'; btn.onclick = () => stopListener(l.id);
+    row.appendChild(btn); L.appendChild(row);
+  });
+  const S = document.getElementById('sessions');
+  S.innerHTML = d.sessions.length ? '' : '<div class="muted small">no shells yet</div>';
+  d.sessions.forEach(s => {
+    const row = document.createElement('div'); row.className = 'mini-row session' + (s.id === currentSid ? ' sel' : '');
+    row.innerHTML = '<span class="st-dot ' + (s.status === 'open' ? 'open' : '') + '"></span><b>' + s.addr + '</b> <span class="muted small">:' + s.port + '</span>';
+    row.onclick = () => openSession(s.id, s.addr);
+    S.appendChild(row);
+  });
+  // Reopen the session that was active before navigating (once).
+  if (!currentSid && !restoredSession) {
+    restoredSession = true;
+    const want = ZCPersist.load('shells-sid', null);
+    const s = want && d.sessions.find(x => x.id === want && x.status === 'open');
+    if (s) openSession(s.id, s.addr);
+  }
+}
+
+function refreshPayloads() {
+  const ip = document.getElementById('pl-ip').value || 'ATTACKER_IP';
+  const port = document.getElementById('pl-port').value || 'PORT';
+  document.querySelectorAll('#payloads .pl-cmd').forEach(c => {
+    c.textContent = c.dataset.tpl.replace(/ATTACKER_IP|{{ eng.attacker_ip or 'ATTACKER_IP' }}/g, ip).replace(/\bPORT\b/g, port);
+  });
+}
+document.getElementById('pl-ip').addEventListener('input', refreshPayloads);
+document.getElementById('pl-port').addEventListener('input', refreshPayloads);
+document.querySelectorAll('.pl-copy').forEach(b => b.addEventListener('click', () => {
+  navigator.clipboard?.writeText(b.previousElementSibling.textContent);
+  b.textContent = 'copied'; setTimeout(() => b.textContent = 'copy', 1000);
+}));
+
+refreshPayloads();
+loadState();
+setInterval(loadState, 3000);
+</script>
+{% endblock %}

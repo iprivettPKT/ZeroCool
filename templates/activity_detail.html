@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %} — Job {{ job.id }}{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <h1>Job {{ job.id }}</h1>
+  <p class="muted"><a href="{{ url_for('activity') }}">&larr; Activity Log</a></p>
+</header>
+
+<div class="card">
+  <dl class="kv">
+    <dt>Command</dt><dd><code>{{ job.command }}</code></dd>
+    <dt>cwd</dt><dd>{{ job.cwd }}</dd>
+    <dt>Status</dt><dd><span class="badge badge-{{ job.status }}">{{ job.status }}</span></dd>
+    <dt>Exit code</dt><dd>{{ job.exit_code if job.exit_code is not none else '—' }}</dd>
+    <dt>Started</dt><dd>{{ (job.started or '')|replace('T',' ') }}</dd>
+    <dt>Ended</dt><dd>{{ (job.ended or '')|replace('T',' ') }}</dd>
+  </dl>
+</div>
+
+<div class="terminal">
+  <div class="term-head">
+    <span class="dot red"></span><span class="dot amber"></span><span class="dot green"></span>
+    <span class="term-cmd">{{ job.command }}</span>
+  </div>
+  <pre class="term-output static">{% for ln in job.lines %}<span class="ln{{ ' err' if ln.stream == 'stderr' }}">{{ ln.text }}
+</span>{% endfor %}</pre>
+</div>
+{% endblock %}

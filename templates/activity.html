@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %} — Activity Log{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <h1>Activity Log</h1>
+  <p class="muted">Every command run through ZeroCool, newest first. Full output is saved per job.</p>
+</header>
+
+{% if not jobs %}
+  <p class="muted">Nothing run yet. Head to the <a href="{{ url_for('terminal') }}">Terminal</a>.</p>
+{% else %}
+<table class="log-table">
+  <thead>
+    <tr><th>When</th><th>Command</th><th>cwd</th><th>Status</th><th>Exit</th><th>Lines</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for j in jobs %}
+    <tr>
+      <td class="nowrap">{{ (j.started or j.created or '')|replace('T',' ') }}</td>
+      <td class="cmd-cell"><code>{{ j.command }}</code></td>
+      <td class="nowrap muted">{{ j.cwd }}</td>
+      <td><span class="badge badge-{{ j.status }}">{{ j.status }}</span></td>
+      <td>{{ j.exit_code if j.exit_code is not none else '—' }}</td>
+      <td>{{ j.total_lines if j.total_lines is defined else (j.lines|length) }}</td>
+      <td><a class="btn ghost sm" href="{{ url_for('activity_detail', job_id=j.id) }}">view</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

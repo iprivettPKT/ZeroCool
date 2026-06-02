@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ZeroCool{% block title %}{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/zerocool.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-glyph">&gt;_</span>
+        <span class="brand-name">ZeroCool</span>
+      </div>
+      <p class="brand-tag">crash &amp; burn console</p>
+
+      <nav>
+        <a href="{{ url_for('dashboard') }}"
+           class="{{ 'active' if request.endpoint == 'dashboard' }}">Dashboard</a>
+        <a href="{{ url_for('engagement') }}"
+           class="{{ 'active' if request.endpoint == 'engagement' }}">Engagement</a>
+        <a href="{{ url_for('terminal') }}"
+           class="{{ 'active' if request.endpoint == 'terminal' }}">Terminal</a>
+        <a href="{{ url_for('activity') }}"
+           class="{{ 'active' if request.endpoint in ['activity', 'activity_detail'] }}">Activity Log</a>
+        <a href="{{ url_for('tools_page') }}"
+           class="{{ 'active' if request.endpoint == 'tools_page' }}">Dependencies</a>
+        <span class="nav-section">Modules</span>
+        <a href="{{ url_for('recon.recon') }}"
+           class="{{ 'active' if request.endpoint == 'recon.recon' }}">Recon &amp; Scanning</a>
+        <a href="{{ url_for('ad.ad') }}"
+           class="{{ 'active' if request.endpoint == 'ad.ad' }}">Active Directory</a>
+        <a href="{{ url_for('results.results') }}"
+           class="{{ 'active' if request.endpoint == 'results.results' }}">Scan Results</a>
+        <a href="{{ url_for('shells.shells') }}"
+           class="{{ 'active' if request.endpoint == 'shells.shells' }}">Reverse Shells</a>
+        <a href="{{ url_for('files.files') }}"
+           class="{{ 'active' if request.endpoint == 'files.files' }}">File Transfer</a>
+        <a href="{{ url_for('pivot.pivot') }}"
+           class="{{ 'active' if request.endpoint == 'pivot.pivot' }}">Pivoting &amp; Tunnels</a>
+        <a href="{{ url_for('privesc.privesc') }}"
+           class="{{ 'active' if request.endpoint == 'privesc.privesc' }}">Privilege Escalation</a>
+        <a href="{{ url_for('web.web') }}"
+           class="{{ 'active' if request.endpoint == 'web.web' }}">Web</a>
+        <a href="{{ url_for('reporting.loot') }}"
+           class="{{ 'active' if request.endpoint in ['reporting.loot', 'reporting.report'] }}">Loot &amp; Reporting</a>
+      </nav>
+
+      <div class="sidebar-foot">
+        {% if engagement.engagement_name %}
+          <div class="eng-chip">{{ engagement.engagement_name }}</div>
+        {% else %}
+          <div class="eng-chip empty">no engagement</div>
+        {% endif %}
+      </div>
+    </aside>
+
+    <main class="content">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flashes">
+            {% for category, msg in messages %}
+              <div class="flash flash-{{ category }}">{{ msg }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <!-- Quick terminal drawer (resizable, multi-tab; commands run via the runner → Activity Log) -->
+  <button id="zc-drawer-toggle" class="zc-drawer-toggle" title="Quick terminal">&gt;_ term</button>
+  <div id="zc-drawer" class="zc-drawer">
+    <div id="zc-drawer-resize" class="zc-drawer-resize" title="drag to resize"></div>
+    <div class="zc-drawer-head">
+      <div id="zc-tabs" class="zc-tabs"></div>
+      <button id="zc-tab-add" class="zc-iconbtn" title="New tab">+</button>
+      <span class="zc-spacer"></span>
+      <input id="zc-cwd" class="zc-cwd-in" value="{{ engagement.output_dir }}" placeholder="cwd" title="working directory">
+      <button id="zc-drawer-close" class="zc-iconbtn" title="Hide">×</button>
+    </div>
+    <div id="zc-panes" class="zc-panes"></div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/zeroterm.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/persist.js') }}"></script>
+  <script>document.addEventListener('DOMContentLoaded', function () { ZCPersist.autoForm(); });</script>
+  <script>
+  // ---- resizable multi-tab quick terminal (persists across navigations) ----
+  // State (tab list + each tab's job ids) is saved to localStorage. On every
+  // page load we rebuild the tabs and replay their jobs from the runner — done
+  // commands re-render, a still-running command reconnects and continues live.
+  (function () {
+    const drawer = document.getElementById('zc-drawer');
+    const toggle = document.getElementById('zc-drawer-toggle');
+    const tabsEl = document.getElementById('zc-tabs');
+    const panesEl = document.getElementById('zc-panes');
+    const cwdInput = document.getElementById('zc-cwd');
+    const resize = document.getElementById('zc-drawer-resize');
+    const tabs = {}; let seq = 0, active = null;
+    const KEY = 'zc-drawer-state';
+
+    function saveState() {
+      const order = [...tabsEl.querySelectorAll('.zc-tab')].map(t => t.dataset.id);
+      const state = {
+        open: drawer.classList.contains('open'),
+        width: parseInt(drawer.style.width) || null,
+        seq, active, cwd: cwdInput.value,
+        tabs: order.map(id => ({ id, name: tabs[id].name, jobs: tabs[id].jobs, hist: tabs[id].hist })),
+      };
+      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+    }
+
+    function openDrawer() { drawer.classList.add('open'); toggle.classList.add('hidden'); if (!Object.keys(tabs).length) addTab(); saveState(); }
+    function closeDrawer() { drawer.classList.remove('open'); toggle.classList.remove('hidden'); saveState(); }
+    toggle.onclick = openDrawer;
+    document.getElementById('zc-drawer-close').onclick = closeDrawer;
+    document.getElementById('zc-tab-add').onclick = () => { addTab(); };
+
+    function addTab(spec) {
+      spec = spec || {};
+      const id = spec.id || ('zt' + (++seq));
+      const n = parseInt((id || '').replace('zt', '')); if (!isNaN(n)) seq = Math.max(seq, n);
+      const name = spec.name || ('sh ' + (n || seq));
+
+      const tabEl = document.createElement('div');
+      tabEl.className = 'zc-tab'; tabEl.dataset.id = id;
+      tabEl.innerHTML = '<span class="zc-tab-name"></span><button class="zc-tab-x" title="close">×</button>';
+      tabEl.querySelector('.zc-tab-name').textContent = name;
+      tabEl.querySelector('.zc-tab-name').onclick = () => activate(id);
+      tabEl.querySelector('.zc-tab-x').onclick = (e) => { e.stopPropagation(); closeTab(id); };
+      tabsEl.appendChild(tabEl);
+
+      const pane = document.createElement('div');
+      pane.className = 'zc-pane'; pane.dataset.id = id;
+      pane.innerHTML =
+        '<div class="terminal drawer-term"><div class="term-head mini"><span data-term-status class="term-status status-idle">idle</span><span data-term-cmd class="term-cmd"></span></div><pre data-term-output class="term-output"></pre></div>' +
+        '<div class="cmd-row"><span class="prompt">$</span><input class="cmd-input zc-cmd" autocomplete="off" spellcheck="false" placeholder="command — Enter runs, ↑/↓ history"><button class="zc-stop btn ghost xs" title="stop running command" disabled>■ stop</button></div>';
+      panesEl.appendChild(pane);
+
+      const term = ZeroTerm.attach(pane.querySelector('.terminal'), { clearOnRun: false });
+      const inp = pane.querySelector('.zc-cmd');
+      const stopBtn = pane.querySelector('.zc-stop');
+      const t = tabs[id] = {
+        term, pane, tabEl, inp, name,
+        jobs: spec.jobs ? spec.jobs.slice() : [],
+        hist: spec.hist ? spec.hist.slice() : [],
+        hi: 0, draft: '',
+      };
+      t.hi = t.hist.length;
+
+      // Stop the running command.
+      stopBtn.addEventListener('click', () => term.kill());
+      term.onState((s) => { stopBtn.disabled = s !== 'running'; });
+
+      // Enter runs; ↑/↓ recall history (with a draft buffer for the current line).
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const v = inp.value;
+          inp.value = '';
+          if (v.trim()) {
+            if (t.hist[t.hist.length - 1] !== v) t.hist.push(v);
+            if (t.hist.length > 200) t.hist.shift();
+            saveState();
+          }
+          t.hi = t.hist.length;
+          t.draft = '';
+          term.run(v, cwdInput.value);
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          if (!t.hist.length) return;
+          if (t.hi === t.hist.length) t.draft = inp.value;
+          if (t.hi > 0) t.hi--;
+          inp.value = t.hist[t.hi] || '';
+          inp.setSelectionRange(inp.value.length, inp.value.length);
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          if (t.hi < t.hist.length) {
+            t.hi++;
+            inp.value = t.hi === t.hist.length ? (t.draft || '') : (t.hist[t.hi] || '');
+            inp.setSelectionRange(inp.value.length, inp.value.length);
+          }
+        }
+      });
+
+      term.onRun((jid) => { t.jobs.push(jid); saveState(); });
+
+      // Replay this tab's history (and reconnect any running job).
+      if (spec.jobs && spec.jobs.length) {
+        (async () => { for (const j of spec.jobs) { await term.attachJob(j); } })();
+      }
+      if (!spec.restore) { activate(id); saveState(); }
+      return id;
+    }
+
+    function activate(id) {
+      active = id;
+      for (const k in tabs) { tabs[k].pane.classList.toggle('show', k === id); tabs[k].tabEl.classList.toggle('sel', k === id); }
+      tabs[id].inp.focus(); saveState();
+    }
+    function closeTab(id) {
+      const t = tabs[id]; if (!t) return;
+      try { t.term.kill(); } catch (e) {}
+      t.pane.remove(); t.tabEl.remove(); delete tabs[id];
+      if (active === id) { const rest = Object.keys(tabs); active = null; rest.length ? activate(rest[0]) : addTab(); }
+      saveState();
+    }
+
+    let dragging = false;
+    resize.addEventListener('mousedown', (e) => { dragging = true; document.body.style.userSelect = 'none'; e.preventDefault(); });
+    window.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      let w = Math.max(320, Math.min(window.innerWidth - 160, window.innerWidth - e.clientX));
+      drawer.style.width = w + 'px';
+    });
+    window.addEventListener('mouseup', () => { if (dragging) { dragging = false; document.body.style.userSelect = ''; saveState(); } });
+    cwdInput.addEventListener('change', saveState);
+
+    // ---- restore from localStorage ----
+    let st = null;
+    try { st = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
+    if (st) {
+      if (st.width) drawer.style.width = st.width + 'px';
+      seq = st.seq || 0;
+      if (st.cwd != null) cwdInput.value = st.cwd;
+      (st.tabs || []).forEach(t => addTab({ id: t.id, name: t.name, jobs: t.jobs, hist: t.hist, restore: true }));
+      if (st.active && tabs[st.active]) activate(st.active);
+      else { const first = Object.keys(tabs)[0]; if (first) activate(first); }
+      if (st.open) openDrawer();
+    }
+  })();
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

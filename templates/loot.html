@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %} — Loot &amp; Reporting{% endblock %}
+
+{% macro finding_form(action, f, severities, statuses) %}
+<form method="post" action="{{ action }}" class="form finding-form" data-no-persist>
+  <div class="field-grid">
+    <label>Title <input type="text" name="title" required value="{{ f.get('title', '') }}" placeholder="SMB signing not required"></label>
+    <label>Severity
+      <select name="severity">{% for s in severities %}<option {{ 'selected' if s == (f.get('severity') or 'Medium') }}>{{ s }}</option>{% endfor %}</select>
+    </label>
+    <label>Status
+      <select name="status">{% for s in statuses %}<option {{ 'selected' if s == (f.get('status') or 'Open') }}>{{ s }}</option>{% endfor %}</select>
+    </label>
+    <label>Affected host <input type="text" name="host" value="{{ f.get('host', '') }}" placeholder="10.10.0.5"></label>
+    <label>Port <input type="text" name="port" value="{{ f.get('port', '') }}" placeholder="445"></label>
+  </div>
+  <label>Description <textarea name="description" rows="2">{{ f.get('description', '') }}</textarea></label>
+  <label>Evidence <textarea name="evidence" rows="2" placeholder="command output / PoC">{{ f.get('evidence', '') }}</textarea></label>
+  <label>Recommendation <textarea name="recommendation" rows="2">{{ f.get('recommendation', '') }}</textarea></label>
+  <button type="submit" class="btn primary">{{ 'Save changes' if f else 'Add finding' }}</button>
+</form>
+{% endmacro %}
+
+{% macro quickadd(item, label) %}
+<form method="post" action="{{ url_for('reporting.loot_finding_add') }}" style="display:inline">
+  <input type="hidden" name="title" value="{{ item.title }}">
+  <input type="hidden" name="severity" value="{{ item.severity }}">
+  <input type="hidden" name="description" value="{{ item.description }}">
+  <input type="hidden" name="recommendation" value="{{ item.recommendation }}">
+  {% if item.host is defined %}<input type="hidden" name="host" value="{{ item.host }}"><input type="hidden" name="port" value="{{ item.port }}">{% endif %}
+  {% if item.status is defined %}<input type="hidden" name="status" value="{{ item.status }}">{% endif %}
+  {% if item.evidence is defined %}<input type="hidden" name="evidence" value="{{ item.evidence }}">{% endif %}
+  <button class="btn ghost sm" type="submit">{{ label }}</button>
+</form>
+{% endmacro %}
+
+{% block content %}
+<header class="page-head">
+  <h1>Loot &amp; Reporting</h1>
+  <p class="muted">Record findings, browse collected loot, and export the engagement report.</p>
+</header>
+
+<div class="report-actions">
+  <a class="btn primary" href="{{ url_for('reporting.report') }}" target="_blank">View report</a>
+  <a class="btn" href="{{ url_for('reporting.report_md') }}">Download .md</a>
+  <span class="muted small">{{ command_count }} commands logged · {{ files|length }} loot files</span>
+</div>
+
+{% if candidates %}
+<section>
+  <h2 class="sec-h">Detected from scans <span class="muted small">({{ candidates|length }})</span>
+    <form method="post" action="{{ url_for('reporting.loot_detect_all') }}" style="display:inline; margin-left:10px">
+      <button class="btn primary sm" type="submit">+ Add all {{ candidates|length }}</button>
+    </form>
+  </h2>
+  <p class="hint">From your nmap results. <b>Confirmed</b> = derived from NSE script output (with evidence); <b>lead</b> = inferred from the open port — verify before reporting.</p>
+  <table class="log-table">
+    <thead><tr><th>Severity</th><th>Confidence</th><th>Finding</th><th>Affected</th><th></th></tr></thead>
+    <tbody>
+      {% for c in candidates %}
+      <tr>
+        <td><span class="badge sev-{{ c.severity|lower }}">{{ c.severity }}</span></td>
+        <td>{% if c.confirmed %}<span class="badge badge-finished">confirmed</span>{% else %}<span class="muted small">lead</span>{% endif %}</td>
+        <td>{{ c.title }}{% if c.evidence %}<div class="muted small nse-ev">{{ c.evidence[:140] }}{{ '…' if c.evidence|length > 140 }}</div>{% endif %}</td>
+        <td class="nowrap">{{ c.host }}{% if c.port %}:{{ c.port }}{% endif %}</td>
+        <td>{{ quickadd(c, 'add') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+<section>
+  <h2 class="sec-h">Findings
+    <span class="sev-counts">
+      {% for sev in severities %}<span class="badge sev-{{ sev|lower }}">{{ sev }}: {{ counts[sev] }}</span>{% endfor %}
+    </span>
+  </h2>
+
+  {% if findings %}
+  <table class="log-table">
+    <thead><tr><th>Severity</th><th>Title</th><th>Affected</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      {% for f in findings %}
+      <tr>
+        <td><span class="badge sev-{{ f.severity|lower }}">{{ f.severity }}</span></td>
+        <td><b>{{ f.title }}</b>{% if f.description %}<div class="muted small">{{ f.description[:120] }}{{ '…' if f.description|length > 120 }}</div>{% endif %}</td>
+        <td class="nowrap">{{ f.host }}{% if f.port %}:{{ f.port }}{% endif %}</td>
+        <td>{{ f.status }}</td>
+        <td class="nowrap">
+          <button type="button" class="btn ghost sm edit-btn" data-id="{{ f.id }}">edit</button>
+          <form method="post" action="{{ url_for('reporting.loot_finding_delete', fid=f.id) }}" style="display:inline" onsubmit="return confirm('Delete this finding?')">
+            <button class="btn-icon" type="submit">✕</button>
+          </form>
+        </td>
+      </tr>
+      <tr class="edit-row hidden" id="edit-{{ f.id }}">
+        <td colspan="5">{{ finding_form(url_for('reporting.loot_finding_edit', fid=f.id), f, severities, statuses) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No findings yet — add one below.</p>
+  {% endif %}
+
+  <details class="add-finding" {{ 'open' if not findings }}>
+    <summary>+ Add finding</summary>
+    {{ finding_form(url_for('reporting.loot_finding_add'), {}, severities, statuses) }}
+  </details>
+
+  <details class="finding-library">
+    <summary>Finding library <span class="muted small">({{ library|length }} templates — add then set the affected host)</span></summary>
+    <table class="log-table">
+      <thead><tr><th>Severity</th><th>Finding</th><th></th></tr></thead>
+      <tbody>
+        {% for t in library %}
+        <tr>
+          <td><span class="badge sev-{{ t.severity|lower }}">{{ t.severity }}</span></td>
+          <td><b>{{ t.title }}</b><div class="muted small">{{ t.description[:110] }}{{ '…' if t.description|length > 110 }}</div></td>
+          <td class="nowrap">{{ quickadd(t, '+ add') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </details>
+</section>
+
+<section>
+  <h2 class="sec-h">Loot files</h2>
+  {% if not loot_dir %}
+    <p class="muted">Set an output dir in the <a href="{{ url_for('engagement') }}">Engagement</a> to collect loot here.</p>
+  {% elif not files %}
+    <p class="muted">No files in <code>{{ loot_dir }}</code> yet.</p>
+  {% else %}
+  <table class="log-table">
+    <thead><tr><th>File</th><th>Size</th><th></th></tr></thead>
+    <tbody>
+      {% for f in files %}
+      <tr>
+        <td><code>{{ f.rel }}</code></td>
+        <td class="nowrap muted">{{ f.hsize }}</td>
+        <td class="nowrap">
+          <a class="btn ghost sm" href="{{ url_for('reporting.loot_file', path=f.path) }}" target="_blank">view</a>
+          <a class="btn ghost sm" href="{{ url_for('reporting.loot_file', path=f.path, dl=1) }}">download</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.edit-btn').forEach(b => b.addEventListener('click', () => {
+  const row = document.getElementById('edit-' + b.dataset.id);
+  if (row) row.classList.toggle('hidden');
+}));
+</script>
+{% endblock %}

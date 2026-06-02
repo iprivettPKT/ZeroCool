@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %} — Dependencies{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <h1>Dependencies</h1>
+  <p class="muted">What ZeroCool needs to run its commands. Missing scripts are also fetched
+    automatically the first time a command needs them. Downloaded into <code>{{ status.tools_dir }}</code>.</p>
+</header>
+
+<section>
+  <h2 class="sec-h">Standalone scripts <span class="muted">(auto-fetched on demand)</span></h2>
+  <table class="dep-table">
+    <thead><tr><th>Tool</th><th>Status</th><th>Location</th><th></th></tr></thead>
+    <tbody>
+      {% for s in status.scripts %}
+      <tr data-name="{{ s.name }}">
+        <td><code>{{ s.name }}</code><div class="muted small">{{ s.label }}</div></td>
+        <td class="st">{% if s.installed %}<span class="badge badge-finished">installed</span>{% else %}<span class="badge badge-failed">missing</span>{% endif %}</td>
+        <td class="loc muted small">{{ s.path or '—' }}</td>
+        <td><button type="button" class="btn ghost sm fetch-btn" data-name="{{ s.name }}">Fetch</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2 class="sec-h">Packaged tools <span class="muted">(apt / pipx / gem)</span></h2>
+  <table class="dep-table">
+    <thead><tr><th>Tool</th><th>Status</th><th>Install command</th><th></th></tr></thead>
+    <tbody>
+      {% for p in status.packages %}
+      <tr>
+        <td><code>{{ p.name }}</code><div class="muted small">{{ p.label }}</div></td>
+        <td>{% if p.installed %}<span class="badge badge-finished">installed</span>{% else %}<span class="badge badge-failed">missing</span>{% endif %}</td>
+        <td><code class="small">{{ p.install }}</code></td>
+        <td><button type="button" class="btn ghost sm install-btn" data-cmd="{{ p.install }}">Install</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="hint">Installs run as the current user — apt/gem steps may need ZeroCool started with sudo.</p>
+</section>
+
+<div class="terminal" id="terminal">
+  <div class="term-head">
+    <span class="dot red"></span><span class="dot amber"></span><span class="dot green"></span>
+    <span data-term-status class="term-status status-idle">idle</span>
+    <span data-term-cmd class="term-cmd"></span>
+  </div>
+  <pre data-term-output class="term-output"></pre>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/zeroterm.js') }}"></script>
+<script>
+const term = ZeroTerm.attach(document.getElementById('terminal'));
+
+// Fetch a standalone script via the dedicated endpoint, then update its row.
+document.querySelectorAll('.fetch-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const name = btn.dataset.name;
+    btn.disabled = true; btn.textContent = 'Fetching…';
+    try {
+      const resp = await fetch('/tools/fetch/' + encodeURIComponent(name), {method: 'POST'});
+      const data = await resp.json();
+      const row = document.querySelector('tr[data-name="' + name + '"]');
+      if (data.ok) {
+        row.querySelector('.st').innerHTML = '<span class="badge badge-finished">installed</span>';
+        row.querySelector('.loc').textContent = data.path;
+        btn.textContent = 'Re-fetch';
+      } else {
+        btn.textContent = 'Failed';
+        row.querySelector('.loc').textContent = data.error || 'fetch failed';
+      }
+    } catch (e) {
+      btn.textContent = 'Error';
+    } finally {
+      btn.disabled = false;
+    }
+  });
+});
+
+// Run an install command through the shared runner / terminal.
+document.querySelectorAll('.install-btn').forEach(btn => {
+  btn.addEventListener('click', () => term.run(btn.dataset.cmd, ''));
+});
+</script>
+{% endblock %}

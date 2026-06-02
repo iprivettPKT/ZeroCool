@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %} — File Transfer{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <h1>File Transfer</h1>
+  <p class="muted">HTTP file server — GET to download to a target, PUT/POST to receive uploads.
+    Binds <code>0.0.0.0</code>{% if eng.attacker_ip %}, your IP is <code>{{ eng.attacker_ip }}</code>{% endif %}.</p>
+</header>
+
+<form id="serve-form" class="inline-form">
+  <span class="prompt">serve</span>
+  <input type="text" id="serve-dir" value="{{ default_dir }}" class="cmd-input" placeholder="/path/to/share">
+  <span class="prompt">on port</span>
+  <input type="number" id="serve-port" value="8000" min="1" max="65535" class="port-in">
+  <button type="submit" class="btn primary sm">Start server</button>
+  <span id="serve-msg" class="muted small"></span>
+</form>
+
+<div id="servers" class="servers"></div>
+
+<details class="payloads" open>
+  <summary>Transfer commands (run these on the target)</summary>
+  <div class="pl-portrow">
+    <span class="muted small">your IP</span>
+    <input type="text" id="t-ip" value="{{ eng.attacker_ip }}" placeholder="10.10.14.7" class="port-in wide">
+    <span class="muted small">port</span><input type="number" id="t-port" value="8000" class="port-in">
+    <span class="muted small">file</span><input type="text" id="t-file" value="file" class="port-in wide">
+  </div>
+  <h4 class="mini-h">Download (target ← you)</h4>
+  <div id="dl-cmds">
+    {% for c in snippets.download %}<div class="pl-row"><span class="pl-label">{{ c.label }}</span><code class="pl-cmd" data-kind="download" data-tpl="{{ c.cmd }}">{{ c.cmd }}</code><button type="button" class="btn ghost xs pl-copy">copy</button></div>{% endfor %}
+  </div>
+  <h4 class="mini-h">Upload (target → you)</h4>
+  <div id="ul-cmds">
+    {% for c in snippets.upload %}<div class="pl-row"><span class="pl-label">{{ c.label }}</span><code class="pl-cmd" data-kind="upload" data-tpl="{{ c.cmd }}">{{ c.cmd }}</code><button type="button" class="btn ghost xs pl-copy">copy</button></div>{% endfor %}
+  </div>
+</details>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('serve-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const directory = document.getElementById('serve-dir').value;
+  const port = document.getElementById('serve-port').value;
+  const msg = document.getElementById('serve-msg');
+  msg.textContent = 'starting…';
+  try {
+    const r = await fetch('/files/serve', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({directory, port})});
+    const d = await r.json();
+    msg.textContent = r.ok ? ('serving on ' + d.port) : ('error: ' + (d.error || r.status));
+  } catch (err) { msg.textContent = 'error'; }
+  loadState();
+});
+
+async function stopServer(fid) {
+  await fetch('/files/stop/' + fid, {method: 'POST'}).catch(() => {});
+  loadState();
+}
+
+async function loadState() {
+  let d; try { d = await (await fetch('/files/state')).json(); } catch (e) { return; }
+  const box = document.getElementById('servers');
+  if (!d.servers.length) { box.innerHTML = '<div class="muted small">no servers running</div>'; return; }
+  box.innerHTML = '';
+  d.servers.forEach(s => {
+    const card = document.createElement('div');
+    card.className = 'server-card';
+    const badge = '<span class="badge badge-' + (s.status === 'serving' ? 'finished' : (s.status === 'error' ? 'failed' : 'pending')) + '">' + s.status + '</span>';
+    let logRows = s.log.slice().reverse().map(e =>
+      '<tr><td class="muted small">' + e.ts.replace('T', ' ') + '</td><td>' + e.client + '</td><td class="act-' + e.action + '">' + e.action + '</td><td class="small">' + escapeHtml(e.detail) + '</td></tr>').join('');
+    card.innerHTML =
+      '<div class="server-head">' + badge + ' <b>:' + s.port + '</b> <span class="muted small">' + escapeHtml(s.directory) + '</span>' +
+      (s.error ? ' <span class="warn">' + escapeHtml(s.error) + '</span>' : '') +
+      ' <span class="muted small">' + s.transfers + ' transfers</span>' +
+      '<button class="btn ghost xs stopbtn">stop</button></div>' +
+      '<table class="xfer-table"><tbody>' + (logRows || '<tr><td class="muted small">no transfers yet</td></tr>') + '</tbody></table>';
+    card.querySelector('.stopbtn').onclick = () => stopServer(s.id);
+    box.appendChild(card);
+  });
+}
+
+function escapeHtml(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+function refreshCmds() {
+  const ip = document.getElementById('t-ip').value || 'ATTACKER_IP';
+  const port = document.getElementById('t-port').value || 'PORT';
+  const file = document.getElementById('t-file').value || 'file';
+  document.querySelectorAll('.pl-cmd').forEach(c => {
+    let t = c.dataset.tpl.replace(/ATTACKER_IP|{{ eng.attacker_ip or 'ATTACKER_IP' }}/g, ip).replace(/\bPORT\b/g, port).replace(/\bfile\b/g, file);
+    c.textContent = t;
+  });
+}
+['t-ip','t-port','t-file'].forEach(id => document.getElementById(id).addEventListener('input', refreshCmds));
+document.querySelectorAll('.pl-copy').forEach(b => b.addEventListener('click', () => {
+  navigator.clipboard?.writeText(b.previousElementSibling.textContent);
+  b.textContent = 'copied'; setTimeout(() => b.textContent = 'copy', 1000);
+}));
+
+refreshCmds();
+loadState();
+setInterval(loadState, 2500);
+</script>
+{% endblock %}

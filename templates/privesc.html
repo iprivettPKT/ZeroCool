@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %} — Privilege Escalation{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <h1>Privilege Escalation</h1>
+  <p class="muted">Copy a check onto the target, or <b>stage</b> a tool into your loot dir (runs here, logged) and serve it from
+    <a href="{{ url_for('files.files') }}">File Transfer</a>.</p>
+</header>
+
+<div class="pv-vars">
+  <span class="muted small">attacker IP</span><input id="v-ip" class="port-in wide" value="{{ eng.attacker_ip }}" placeholder="10.10.14.7">
+  <span class="muted small">serve port</span><input id="v-port" class="port-in" value="8000">
+  <span class="muted small">LPORT</span><input id="v-lport" class="port-in" value="4444">
+  <span class="muted small">loot dir</span><input id="v-loot" class="port-in wide" value="{{ eng.output_dir }}" placeholder="/home/kali/loot">
+  <span class="muted small">target IP</span><input id="v-tip" class="port-in wide" value="{{ eng.targets[0] if eng.targets else '' }}" placeholder="10.10.0.10">
+</div>
+
+<div class="pv-session-bar">
+  <span class="muted small">send to session</span>
+  <select id="pv-session"><option value="">no open sessions</option></select>
+  <span class="muted small">— the <b>send</b> buttons fire the command into the selected reverse shell</span>
+</div>
+
+<div class="os-toggle">
+  <button type="button" class="os-btn sel" data-os="linux">Linux</button>
+  <button type="button" class="os-btn" data-os="windows">Windows</button>
+</div>
+
+{% for os_key, groups in catalog.items() %}
+<div class="os-section" data-os="{{ os_key }}" {{ 'style=display:none' if os_key != 'linux' }}>
+  {% for group in groups %}
+  <div class="pv-group">
+    <h3 class="sec-h">{{ group.cat }}</h3>
+    {% for item in group['items'] %}
+    <div class="pv-card">
+      <div class="pv-card-head">
+        <span class="pv-label">{{ item.label }}</span>
+        {% if item.desc %}<span class="muted small">{{ item.desc }}</span>{% endif %}
+        {% if item.stage %}<button type="button" class="btn ghost xs stage-btn" data-tpl="{{ item.stage }}" style="margin-left:auto">▸ Stage in ZeroCool</button>{% endif %}
+      </div>
+      {% for cmd in item.target %}
+      <div class="pl-row"><code class="pl-cmd" data-tpl="{{ cmd }}">{{ cmd }}</code><button type="button" class="btn ghost xs pl-send">send</button><button type="button" class="btn ghost xs pl-copy">copy</button></div>
+      {% endfor %}
+      {% for note in item.get('notes', []) %}<div class="note">• {{ note }}</div>{% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endfor %}
+
+<div class="terminal" id="terminal" style="margin-top:18px">
+  <div class="term-head">
+    <span class="dot red"></span><span class="dot amber"></span><span class="dot green"></span>
+    <span data-term-status class="term-status status-idle">stage output</span>
+    <span data-term-cmd class="term-cmd"></span>
+  </div>
+  <pre data-term-output class="term-output"></pre>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/zeroterm.js') }}"></script>
+<script>
+const term = ZeroTerm.attach(document.getElementById('terminal'), { clearOnRun: false });
+const V = { ip: 'v-ip', port: 'v-port', lport: 'v-lport', loot: 'v-loot', tip: 'v-tip' };
+
+function vals() {
+  return {
+    ip: document.getElementById('v-ip').value || 'ATTACKER_IP',
+    port: document.getElementById('v-port').value || 'PORT',
+    lport: document.getElementById('v-lport').value || 'LPORT',
+    loot: document.getElementById('v-loot').value || '~/loot',
+    tip: document.getElementById('v-tip').value || 'TARGET',
+  };
+}
+function fill(tpl) {
+  const v = vals();
+  return tpl.replace(/\{ip\}/g, v.ip).replace(/\{port\}/g, v.port)
+            .replace(/\{lport\}/g, v.lport).replace(/\{loot\}/g, v.loot).replace(/\{tip\}/g, v.tip);
+}
+function refreshCmds() {
+  document.querySelectorAll('.pl-cmd').forEach(c => { c.textContent = fill(c.dataset.tpl); });
+}
+Object.values(V).forEach(id => document.getElementById(id).addEventListener('input', refreshCmds));
+
+function rowCmd(btn) { return btn.closest('.pl-row').querySelector('.pl-cmd').textContent; }
+
+document.querySelectorAll('.pl-copy').forEach(b => b.addEventListener('click', () => {
+  navigator.clipboard?.writeText(rowCmd(b));
+  b.textContent = 'copied'; setTimeout(() => b.textContent = 'copy', 1000);
+}));
+
+// Send a command straight into the selected reverse shell.
+document.querySelectorAll('.pl-send').forEach(b => b.addEventListener('click', async () => {
+  const sid = document.getElementById('pv-session').value;
+  if (!sid) { b.textContent = 'no session'; setTimeout(() => b.textContent = 'send', 1300); return; }
+  b.textContent = '…';
+  let ok = false;
+  try {
+    const r = await fetch('/shells/send/' + sid, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({data: rowCmd(b)})
+    });
+    ok = r.ok && (await r.json()).sent;
+  } catch (e) {}
+  b.textContent = ok ? 'sent ✓' : 'failed';
+  setTimeout(() => b.textContent = 'send', 1300);
+}));
+
+// Keep the session dropdown populated with open shells.
+async function loadSessions() {
+  let d; try { d = await (await fetch('/shells/state')).json(); } catch (e) { return; }
+  const sel = document.getElementById('pv-session');
+  const cur = sel.value;
+  const open = (d.sessions || []).filter(s => s.status === 'open');
+  sel.innerHTML = open.length ? '' : '<option value="">no open sessions</option>';
+  open.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.addr + ' (' + s.id + ')'; sel.appendChild(o); });
+  if (cur && open.some(s => s.id === cur)) sel.value = cur;
+}
+loadSessions();
+setInterval(loadSessions, 3000);
+
+// "Stage" actions run in ZeroCool (download tool into loot dir; logged to Activity).
+document.querySelectorAll('.stage-btn').forEach(b => b.addEventListener('click', () => {
+  term.run(fill(b.dataset.tpl), document.getElementById('v-loot').value);
+}));
+
+// OS toggle (persisted)
+function setOS(os) {
+  document.querySelectorAll('.os-btn').forEach(b => b.classList.toggle('sel', b.dataset.os === os));
+  document.querySelectorAll('.os-section').forEach(s => s.style.display = s.dataset.os === os ? '' : 'none');
+  ZCPersist.save('privesc-os', os);
+}
+document.querySelectorAll('.os-btn').forEach(b => b.addEventListener('click', () => setOS(b.dataset.os)));
+
+setOS(ZCPersist.load('privesc-os', 'linux'));
+refreshCmds();
+</script>
+{% endblock %}

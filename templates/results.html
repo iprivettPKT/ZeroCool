@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %} — Scan Results{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <h1>Scan Results</h1>
+  <p class="muted">Parsed from nmap XML in <code>{{ loot or '— no output dir set —' }}</code>.
+    Promote hosts to engagement targets, or jump straight into a module.</p>
+</header>
+
+<form class="results-bar" method="get" data-no-persist>
+  <label>Source dir
+    <input type="text" name="dir" value="{{ loot }}" placeholder="/home/kali/engagements/acme">
+  </label>
+  <label>Scan
+    <select name="file" onchange="this.form.submit()">
+      <option value="all" {{ 'selected' if selected == 'all' }}>All scans (aggregate)</option>
+      {% for f in files %}
+        <option value="{{ f }}" {{ 'selected' if selected == f }}>{{ f.split('/')|last }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button type="submit" class="btn">Reload</button>
+</form>
+
+{% if not files %}
+  <div class="warn">⚠ No nmap .xml files found. Run a scan from the
+    <a href="{{ url_for('recon.recon') }}">Recon</a> module (with an output dir set) and they'll appear here.</div>
+{% else %}
+
+<div class="stat-row big">
+  <div class="stat"><span class="num">{{ data.stats.hosts }}</span><span class="lbl">hosts</span></div>
+  <div class="stat"><span class="num">{{ data.stats.ports }}</span><span class="lbl">open ports</span></div>
+  <div class="stat"><span class="num">{{ data.stats.services }}</span><span class="lbl">services</span></div>
+  <div class="stat"><span class="num">{{ files|length }}</span><span class="lbl">scan files</span></div>
+</div>
+
+{% for e in data.errors %}<div class="warn">⚠ {{ e }}</div>{% endfor %}
+
+<div class="results-actions">
+  <input type="text" id="filter" class="filter-input" placeholder="filter by host / service / port…">
+  <button type="button" class="btn ghost sm" id="sel-all">Select all</button>
+  <button type="submit" form="targets-form" class="btn primary sm">+ Add selected to targets</button>
+</div>
+
+<form id="targets-form" method="post" action="{{ url_for('results.results_add_targets') }}">
+  {% for h in data.hosts %}
+  <div class="host-card" data-search="{{ h.ip }} {{ h.hostnames|join(' ') }} {{ h.os }} {% for p in h.ports %}{{ p.port }} {{ p.service }} {{ p.product }} {% endfor %}">
+    <div class="host-head">
+      <label class="host-pick">
+        <input type="checkbox" name="ip" value="{{ h.ip }}" class="host-cb" {{ 'checked disabled' if h.ip in existing_targets }}>
+      </label>
+      <span class="host-ip">{{ h.ip or '(no ip)' }}</span>
+      {% if h.hostnames %}<span class="host-name">{{ h.hostnames|join(', ') }}</span>{% endif %}
+      <span class="badge badge-{{ 'finished' if h.state == 'up' else 'pending' }}">{{ h.state }}</span>
+      {% if h.os %}<span class="host-os muted">{{ h.os }}</span>{% endif %}
+      {% if h.ip in existing_targets %}<span class="chip">target</span>{% endif %}
+      <span class="host-links">
+        {% if h.has_smb %}<a class="pill smb" href="{{ url_for('ad.ad') }}?target={{ h.ip }}">AD ▸</a>{% endif %}
+        {% if h.has_ldap and not h.has_smb %}<a class="pill smb" href="{{ url_for('ad.ad') }}?target={{ h.ip }}">AD ▸</a>{% endif %}
+        {% if h.has_web %}<a class="pill web" href="{{ url_for('recon.recon') }}?target={{ h.ip }}">Recon ▸</a>{% endif %}
+      </span>
+    </div>
+    {% if h.ports %}
+    <table class="port-table">
+      <thead><tr><th>Port</th><th>Proto</th><th>State</th><th>Service</th><th>Product / Version</th><th>Scripts</th></tr></thead>
+      <tbody>
+        {% for p in h.ports %}
+        <tr>
+          <td class="port-num">{{ p.port }}</td>
+          <td>{{ p.proto }}</td>
+          <td><span class="st-dot {{ 'open' if p.state == 'open' }}"></span>{{ p.state }}</td>
+          <td class="svc">{{ p.service or '—' }}</td>
+          <td class="muted">{{ (p.product ~ ' ' ~ p.version) | trim or '—' }}{% if p.extrainfo %} <span class="small">({{ p.extrainfo }})</span>{% endif %}</td>
+          <td class="small muted">{{ p.scripts|map(attribute='id')|join(', ') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <div class="muted small no-ports">no open ports recorded</div>
+    {% endif %}
+    {% if h.scripts %}<div class="host-src small muted">host scripts: {{ h.scripts|map(attribute='id')|join(', ') }}</div>{% endif %}
+    {% if h.sources|length %}<div class="host-src small muted">from: {{ h.sources|join(', ') }}</div>{% endif %}
+  </div>
+  {% endfor %}
+</form>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const filter = document.getElementById('filter');
+if (filter) {
+  filter.addEventListener('input', () => {
+    const q = filter.value.toLowerCase();
+    document.querySelectorAll('.host-card').forEach(card => {
+      const hay = (card.dataset.search || '').toLowerCase();
+      card.style.display = hay.includes(q) ? '' : 'none';
+    });
+  });
+}
+const selAll = document.getElementById('sel-all');
+if (selAll) {
+  selAll.addEventListener('click', () => {
+    const boxes = [...document.querySelectorAll('.host-cb:not([disabled])')];
+    const allOn = boxes.every(b => b.checked);
+    boxes.forEach(b => { if (b.closest('.host-card').style.display !== 'none') b.checked = !allOn; });
+  });
+}
+</script>
+{% endblock %}

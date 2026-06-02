@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %} — Pivoting{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <h1>Pivoting &amp; Tunnels</h1>
+  <p class="muted">Set up a tunnel: run the attacker-side here, copy the remote side onto the pivot.
+    {% if eng.attacker_ip %}Your IP: <code>{{ eng.attacker_ip }}</code>.{% else %}<span class="warn">Set your attacker IP in the engagement.</span>{% endif %}</p>
+</header>
+
+<div class="proxy-bar">
+  <span class="prompt">SOCKS proxy</span>
+  <input type="text" id="proxy-in" value="{{ eng.socks_proxy }}" placeholder="127.0.0.1:1080" class="port-in wide">
+  <button type="button" id="proxy-apply" class="btn primary sm">Write proxychains config</button>
+  <span id="proxy-msg" class="muted small">{% if eng.socks_proxy %}active: {{ eng.socks_proxy }}{% endif %}</span>
+</div>
+<p class="hint">Saved to the engagement; the AD module's “via proxychains” checkbox uses it. Routes TCP tools through a SOCKS5 pivot.</p>
+
+<div class="ad-layout">
+  <div class="ad-catalog">
+    {% for g in groups %}
+      <div class="ad-cat">
+        <div class="ad-cat-head">{{ g }}</div>
+        {% for r in recipes if r.group == g %}
+          <button type="button" class="ad-action" data-recipe-id="{{ r.id }}" title="{{ r.desc }}">{{ r.label }}</button>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="ad-detail" data-no-persist>
+    <div id="detail-empty" class="muted detail-empty">Select a tunnel recipe.</div>
+    <div id="detail" class="hidden">
+      <h2 id="d-label"></h2>
+      <p id="d-desc" class="muted"></p>
+
+      <fieldset id="recipe-fieldset" class="hidden">
+        <legend>Options</legend>
+        <div id="recipe-inputs" class="field-grid"></div>
+      </fieldset>
+
+      <div class="preview-box">
+        <div class="preview-head"><span>Run on attacker (ZeroCool)</span><span id="socks-tag" class="muted small"></span></div>
+        <pre id="attacker-cmd" class="cmd-preview"></pre>
+        <div class="preview-actions">
+          <button id="run-btn" class="btn primary">Run</button>
+          <button id="kill-btn" class="btn" disabled>Stop</button>
+          <button id="copy-a" class="btn ghost">Copy</button>
+        </div>
+      </div>
+
+      <div class="preview-box" id="remote-box">
+        <div class="preview-head"><span>Run on the pivot / target</span><button type="button" id="copy-r" class="btn ghost xs">copy</button></div>
+        <pre id="remote-cmd" class="cmd-preview"></pre>
+      </div>
+
+      <div id="notes" class="notes"></div>
+    </div>
+  </div>
+</div>
+
+<div class="terminal" id="terminal">
+  <div class="term-head">
+    <span class="dot red"></span><span class="dot amber"></span><span class="dot green"></span>
+    <span data-term-status class="term-status status-idle">idle</span>
+    <span data-term-cmd class="term-cmd"></span>
+  </div>
+  <pre data-term-output class="term-output"></pre>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/zeroterm.js') }}"></script>
+<script>
+const RECIPES = {{ recipes|tojson }};
+const BY_ID = {}; RECIPES.forEach(r => BY_ID[r.id] = r);
+const term = ZeroTerm.attach(document.getElementById('terminal'));
+
+const detail = document.getElementById('detail');
+const detailEmpty = document.getElementById('detail-empty');
+const dLabel = document.getElementById('d-label');
+const dDesc = document.getElementById('d-desc');
+const recipeFieldset = document.getElementById('recipe-fieldset');
+const recipeInputs = document.getElementById('recipe-inputs');
+const attackerCmd = document.getElementById('attacker-cmd');
+const remoteCmd = document.getElementById('remote-cmd');
+const remoteBox = document.getElementById('remote-box');
+const socksTag = document.getElementById('socks-tag');
+const notes = document.getElementById('notes');
+const runBtn = document.getElementById('run-btn');
+const killBtn = document.getElementById('kill-btn');
+
+let selected = null, currentAttacker = '', running = false;
+
+function renderInputs(recipe) {
+  recipeInputs.innerHTML = '';
+  if (!(recipe.inputs || []).length) { recipeFieldset.classList.add('hidden'); return; }
+  recipeFieldset.classList.remove('hidden');
+  recipe.inputs.forEach(inp => {
+    const label = document.createElement('label');
+    label.textContent = inp.label;
+    const f = document.createElement('input');
+    f.type = 'text'; f.dataset.param = inp.name; f.placeholder = inp.placeholder || '';
+    if (inp.default) f.value = inp.default;
+    label.appendChild(f); recipeInputs.appendChild(label);
+  });
+}
+
+function gatherParams() {
+  const p = {};
+  recipeInputs.querySelectorAll('[data-param]').forEach(el => p[el.dataset.param] = el.value);
+  return p;
+}
+
+let debounce = null;
+function refresh() {
+  if (!selected) return;
+  clearTimeout(debounce);
+  debounce = setTimeout(async () => {
+    try {
+      const resp = await fetch('{{ url_for("pivot.pivot_build") }}', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({recipe_id: selected, params: gatherParams()}),
+      });
+      const d = await resp.json();
+      currentAttacker = d.attacker || '';
+      attackerCmd.textContent = currentAttacker || '(this recipe runs only on the remote side)';
+      runBtn.disabled = running || !currentAttacker;
+      remoteBox.style.display = d.remote ? '' : 'none';
+      remoteCmd.textContent = d.remote || '';
+      socksTag.textContent = d.socks ? ('SOCKS → ' + d.socks) : '';
+      notes.innerHTML = '';
+      (d.notes || []).forEach(n => { const e = document.createElement('div'); e.className = 'note'; e.textContent = '• ' + n; notes.appendChild(e); });
+    } catch (e) {}
+  }, 150);
+}
+
+function selectRecipe(id) {
+  selected = id;
+  const r = BY_ID[id];
+  detailEmpty.classList.add('hidden'); detail.classList.remove('hidden');
+  dLabel.textContent = r.label; dDesc.textContent = r.desc;
+  renderInputs(r);
+  document.querySelectorAll('.ad-action').forEach(b => b.classList.toggle('sel', b.dataset.recipeId === id));
+  refresh();
+}
+
+document.querySelectorAll('.ad-action').forEach(b => b.addEventListener('click', () => selectRecipe(b.dataset.recipeId)));
+detail.addEventListener('input', () => { refresh(); persistPivot(); });
+
+function persistPivot() {
+  if (selected) { ZCPersist.save('pv-sel', selected); ZCPersist.save('pv-params', gatherParams()); }
+}
+function applyPivot(p) {
+  recipeInputs.querySelectorAll('[data-param]').forEach(el => { if (p[el.dataset.param] != null) el.value = p[el.dataset.param]; });
+}
+
+term.onState(s => { running = (s === 'running'); runBtn.disabled = running || !currentAttacker; killBtn.disabled = !running; });
+runBtn.addEventListener('click', () => { if (currentAttacker && !running) term.run(currentAttacker, ''); });
+killBtn.addEventListener('click', () => term.kill());
+document.getElementById('copy-a').addEventListener('click', () => navigator.clipboard?.writeText(currentAttacker));
+document.getElementById('copy-r').addEventListener('click', () => navigator.clipboard?.writeText(remoteCmd.textContent));
+
+// proxychains config
+document.getElementById('proxy-apply').addEventListener('click', async () => {
+  const proxy = document.getElementById('proxy-in').value.trim();
+  const msg = document.getElementById('proxy-msg');
+  msg.textContent = 'writing…';
+  try {
+    const r = await fetch('{{ url_for("pivot.pivot_proxychains") }}', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({proxy})});
+    const d = await r.json();
+    msg.textContent = r.ok ? ('active: ' + d.proxy + '  —  ' + d.prefix) : ('error: ' + (d.error || r.status));
+  } catch (e) { msg.textContent = 'error'; }
+});
+
+// Restore selected recipe + inputs from a previous visit.
+(function () {
+  const sel = ZCPersist.load('pv-sel', null);
+  if (sel && BY_ID[sel]) {
+    selectRecipe(sel);
+    applyPivot(ZCPersist.load('pv-params', {}) || {});
+    refresh();
+  }
+})();
+</script>
+{% endblock %}

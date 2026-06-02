@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %} — Report{% endblock %}
+
+{% block content %}
+<div class="report-bar no-print">
+  <button class="btn primary" onclick="window.print()">Print / Save PDF</button>
+  <a class="btn" href="{{ url_for('reporting.report_md') }}">Download Markdown</a>
+  <a class="btn ghost" href="{{ url_for('reporting.loot') }}">← Loot</a>
+</div>
+
+<article class="report">
+  <h1>{{ eng.engagement_name or 'Engagement' }} — Penetration Test Report</h1>
+  <p class="report-meta">
+    {% if eng.client %}<b>Client:</b> {{ eng.client }} · {% endif %}
+    <b>Date:</b> {{ date }}{% if eng.domain %} · <b>Domain:</b> {{ eng.domain }}{% endif %}
+  </p>
+
+  <h2>Scope</h2>
+  {% if eng.scope %}<ul>{% for s in eng.scope %}<li>{{ s }}</li>{% endfor %}</ul>{% else %}<p class="muted">None defined.</p>{% endif %}
+  {% if eng.out_of_scope %}<p><b>Out of scope:</b></p><ul>{% for s in eng.out_of_scope %}<li>{{ s }}</li>{% endfor %}</ul>{% endif %}
+
+  <h2>Summary of Findings</h2>
+  <table class="report-table">
+    <thead><tr><th>Severity</th><th>Count</th></tr></thead>
+    <tbody>{% for sev in severities %}<tr><td><span class="badge sev-{{ sev|lower }}">{{ sev }}</span></td><td>{{ counts[sev] }}</td></tr>{% endfor %}</tbody>
+  </table>
+
+  <h2>Findings</h2>
+  {% if not findings %}<p class="muted">No findings recorded.</p>{% endif %}
+  {% for f in findings %}
+  <div class="report-finding">
+    <h3><span class="badge sev-{{ f.severity|lower }}">{{ f.severity }}</span> {{ loop.index }}. {{ f.title }}</h3>
+    <p class="report-meta">
+      {% if f.host %}<b>Affected:</b> {{ f.host }}{% if f.port %}:{{ f.port }}{% endif %} · {% endif %}
+      <b>Status:</b> {{ f.status }}
+    </p>
+    {% if f.description %}<p><b>Description</b><br>{{ f.description }}</p>{% endif %}
+    {% if f.evidence %}<p><b>Evidence</b></p><pre class="report-pre">{{ f.evidence }}</pre>{% endif %}
+    {% if f.recommendation %}<p><b>Recommendation</b><br>{{ f.recommendation }}</p>{% endif %}
+  </div>
+  {% endfor %}
+
+  {% if hosts %}
+  <h2>Hosts &amp; Services</h2>
+  <table class="report-table">
+    <thead><tr><th>Host</th><th>Hostnames</th><th>Open services</th></tr></thead>
+    <tbody>
+      {% for h in hosts %}
+      <tr>
+        <td>{{ h.ip }}</td>
+        <td>{{ h.hostnames|join(', ') }}</td>
+        <td>{% for p in h.ports %}{{ p.port }}/{{ p.proto }} {{ p.service }}{{ ', ' if not loop.last }}{% endfor %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if eng.credentials %}
+  <h2>Credentials</h2>
+  <table class="report-table">
+    <thead><tr><th>Domain</th><th>User</th><th>Secret</th><th>Notes</th></tr></thead>
+    <tbody>
+      {% for c in eng.credentials %}
+      <tr><td>{{ c.domain }}</td><td>{{ c.username }}</td>
+        <td><code>{{ c.password or ('NT:' ~ c.ntlm_hash if c.ntlm_hash else '') }}</code></td>
+        <td class="muted">{{ c.notes }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if commands %}
+  <h2>Appendix: Command Log</h2>
+  <table class="report-table">
+    <thead><tr><th>When</th><th>Command</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for c in commands %}
+      <tr><td class="nowrap muted">{{ (c.ts or '')|replace('T',' ') }}</td><td><code>{{ c.command }}</code></td>
+        <td class="nowrap">{{ c.status }} ({{ c.exit_code }})</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</article>
+{% endblock %}

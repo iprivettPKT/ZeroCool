@@ -1,0 +1,24 @@
+# Runtime engagement data (engagement.json, findings.json, jobs/, activity log)
+data/
+data.*/
+
+# Tools fetched on demand (LinPEAS, coercion scripts, proxychains.conf, …)
+tools/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+ENV/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Misc
+*.tmp
+*.log
