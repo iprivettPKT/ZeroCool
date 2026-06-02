@@ -18,6 +18,7 @@ found without changing the command the operator sees.
 
 from __future__ import annotations
 
+import glob
 import os
 import shutil
 import stat
@@ -150,17 +151,36 @@ def ensure_tools_dir() -> None:
     os.makedirs(TOOLS_DIR, exist_ok=True)
 
 
+def extra_bin_dirs() -> list[str]:
+    """Common install locations that may not be on the server process's PATH:
+    pipx (~/.local/bin), go (~/go/bin), cargo, gem user dirs, snap, etc.
+    Tools land here but `shutil.which` misses them unless we search explicitly."""
+    cand = [
+        TOOLS_DIR,
+        os.path.expanduser("~/.local/bin"),
+        os.path.expanduser("~/go/bin"),
+        os.path.expanduser("~/.cargo/bin"),
+        "/usr/local/bin", "/usr/local/go/bin", "/snap/bin", "/opt/bin",
+    ]
+    gp = os.environ.get("GOPATH")
+    if gp:
+        cand.append(os.path.join(gp, "bin"))
+    cand += glob.glob(os.path.expanduser("~/.gem/ruby/*/bin"))
+    cand += glob.glob("/var/lib/gems/*/bin")
+    out: list[str] = []
+    for d in cand:
+        if d and d not in out and os.path.isdir(d):
+            out.append(d)
+    return out
+
+
 def locate(binary: str) -> str | None:
-    """Path to `binary` on PATH or in our tools dir, else None."""
+    """Full path to `binary`, searching the process PATH plus the common
+    pipx/go/gem/snap install dirs (so freshly-installed tools are detected)."""
     if not binary:
         return None
-    found = shutil.which(binary)
-    if found:
-        return found
-    candidate = os.path.join(TOOLS_DIR, binary)
-    if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
-        return candidate
-    return None
+    search = os.pathsep.join([os.environ.get("PATH", "")] + extra_bin_dirs())
+    return shutil.which(binary, path=search)
 
 
 def primary_binary(command: str) -> str:
@@ -280,7 +300,9 @@ def prepare(command: str) -> dict:
                 messages.append(f"[zerocool] {binary} not found — install it from the Dependencies page or run: {hint}")
             else:
                 messages.append(f"[zerocool] note: {binary} was not found on PATH")
-    return {"binary": binary, "messages": messages, "path_prepend": TOOLS_DIR}
+    # Prepend the common install dirs so freshly-installed tools resolve.
+    return {"binary": binary, "messages": messages,
+            "path_prepend": os.pathsep.join(extra_bin_dirs())}
 
 
 def status_all() -> dict:
