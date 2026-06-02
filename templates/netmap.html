@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %} — Network Map{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <h1>Network Map</h1>
+  <p class="muted">Graphed from your parsed nmap results. Drag nodes, scroll to zoom, click a host for details.</p>
+</header>
+
+<div class="map-toolbar">
+  <div class="os-toggle">
+    <button type="button" class="os-btn sel" data-mode="topology">Topology</button>
+    <button type="button" class="os-btn" data-mode="services">Services</button>
+  </div>
+  <button id="map-fit" class="btn ghost sm">Fit</button>
+  <button id="map-reload" class="btn ghost sm">Reload</button>
+  <span class="map-legend">
+    <span class="lg lg-attacker">attacker</span>
+    <span class="lg lg-subnet">subnet</span>
+    <span class="lg lg-dc">DC</span>
+    <span class="lg lg-windows">windows</span>
+    <span class="lg lg-web">web</span>
+    <span class="lg lg-db">db</span>
+    <span class="lg lg-host">host</span>
+  </span>
+  <span id="map-status" class="muted small"></span>
+</div>
+
+<div class="map-wrap">
+  <div id="cy" class="cy"></div>
+  <aside id="map-panel" class="map-panel hidden">
+    <div class="map-panel-head"><span id="mp-ip"></span><button id="mp-close" class="btn-icon">✕</button></div>
+    <div id="mp-meta" class="muted small"></div>
+    <h4 class="mini-h">Open services</h4>
+    <ul id="mp-ports" class="mp-ports"></ul>
+    <div id="mp-links" class="mp-links"></div>
+  </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/cytoscape.min.js') }}"></script>
+<script>
+const ROLE_COLORS = {
+  attacker: '#39ff14', subnet: '#6f836f', dc: '#ff4d4d', windows: '#4da6ff',
+  web: '#ffb000', db: '#ff8c00', host: '#9dffb0', service: '#2bc40f',
+};
+let cy = null, mode = 'topology';
+const statusEl = document.getElementById('map-status');
+
+function styleSheet() {
+  return [
+    { selector: 'node', style: {
+      'label': 'data(label)', 'color': '#c7d6c7', 'font-family': 'monospace', 'font-size': 10,
+      'text-wrap': 'wrap', 'text-valign': 'bottom', 'text-margin-y': 3,
+      'background-color': ele => ROLE_COLORS[ele.data('role') || ele.data('type')] || '#9dffb0',
+      'width': 26, 'height': 26, 'border-width': 1, 'border-color': '#1f2a20',
+    }},
+    { selector: 'node[type="attacker"]', style: { 'shape': 'diamond', 'width': 40, 'height': 40,
+      'background-color': ROLE_COLORS.attacker, 'color': '#9dffb0' } },
+    { selector: 'node[type="subnet"]', style: { 'shape': 'round-rectangle', 'background-color': '#131b14',
+      'border-color': '#2bc40f', 'width': 70, 'height': 24, 'color': '#9dffb0' } },
+    { selector: 'node[type="service"]', style: { 'shape': 'hexagon', 'background-color': '#2bc40f', 'width': 22, 'height': 22 } },
+    { selector: 'node[type="host"]', style: { 'width': ele => 22 + 3 * Math.min(ele.data('ports') || 0, 10),
+      'height': ele => 22 + 3 * Math.min(ele.data('ports') || 0, 10) } },
+    { selector: 'edge', style: { 'width': 1, 'line-color': '#1f2a20', 'curve-style': 'haystack',
+      'target-arrow-shape': 'none' } },
+    { selector: 'node:selected', style: { 'border-width': 2, 'border-color': '#39ff14' } },
+  ];
+}
+
+async function load() {
+  statusEl.textContent = 'loading…';
+  let data;
+  try { data = await (await fetch('/map/data?mode=' + mode)).json(); }
+  catch (e) { statusEl.textContent = 'failed to load'; return; }
+  if (!data.host_count) { statusEl.textContent = 'No scan data — run a scan from Recon (with an output dir).'; }
+  else { statusEl.textContent = data.host_count + ' hosts · ' + mode; }
+
+  if (cy) cy.destroy();
+  cy = cytoscape({
+    container: document.getElementById('cy'),
+    elements: { nodes: data.nodes, edges: data.edges },
+    style: styleSheet(),
+    layout: { name: 'cose', animate: false, nodeRepulsion: 9000, idealEdgeLength: 70, padding: 30 },
+  });
+  cy.on('tap', 'node[type="host"]', evt => showHost(evt.target.data('detail')));
+  cy.on('tap', evt => { if (evt.target === cy) hidePanel(); });
+}
+
+function showHost(d) {
+  if (!d) return;
+  document.getElementById('mp-ip').textContent = d.ip + (d.hostnames.length ? ('  ' + d.hostnames.join(', ')) : '');
+  document.getElementById('mp-meta').textContent = (d.os ? ('OS: ' + d.os + ' · ') : '') + 'role: ' + d.role;
+  const ul = document.getElementById('mp-ports');
+  ul.innerHTML = d.ports.length ? '' : '<li class="muted">none</li>';
+  d.ports.forEach(p => { const li = document.createElement('li'); li.textContent = p; ul.appendChild(li); });
+  const ip = encodeURIComponent(d.ip);
+  document.getElementById('mp-links').innerHTML =
+    '<a class="pill smb" href="/recon?target=' + ip + '">Recon ▸</a>' +
+    '<a class="pill smb" href="/ad?target=' + ip + '">AD ▸</a>' +
+    '<a class="pill web" href="/web?target=' + ip + '">Web ▸</a>';
+  document.getElementById('map-panel').classList.remove('hidden');
+}
+function hidePanel() { document.getElementById('map-panel').classList.add('hidden'); }
+
+document.getElementById('mp-close').addEventListener('click', hidePanel);
+document.getElementById('map-fit').addEventListener('click', () => cy && cy.fit(undefined, 40));
+document.getElementById('map-reload').addEventListener('click', load);
+document.querySelectorAll('.os-btn').forEach(b => b.addEventListener('click', () => {
+  mode = b.dataset.mode;
+  document.querySelectorAll('.os-btn').forEach(x => x.classList.toggle('sel', x === b));
+  ZCPersist.save('map-mode', mode);
+  hidePanel(); load();
+}));
+
+mode = ZCPersist.load('map-mode', 'topology');
+document.querySelectorAll('.os-btn').forEach(x => x.classList.toggle('sel', x.dataset.mode === mode));
+load();
+</script>
+{% endblock %}

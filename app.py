@@ -30,6 +30,7 @@ import storage
 import tools
 from ad import ad_bp
 from fileserver import files_bp
+from netmap import netmap_bp
 from parser import results_bp
 from pivot import pivot_bp
 from privesc import privesc_bp
@@ -49,6 +50,7 @@ app.register_blueprint(pivot_bp)
 app.register_blueprint(privesc_bp)
 app.register_blueprint(web_bp)
 app.register_blueprint(reporting_bp)
+app.register_blueprint(netmap_bp)
 
 
 @app.context_processor

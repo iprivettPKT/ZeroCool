@@ -546,3 +546,23 @@ textarea { resize: vertical; }
 
 /* ---------- NSE evidence preview ---------- */
 .nse-ev { font-family: var(--mono); white-space: pre-wrap; word-break: break-word; max-height: 3.2em; overflow: hidden; opacity: .8; }
+
+/* ---------- network map ---------- */
+.map-toolbar { display: flex; align-items: center; gap: 12px; margin: 12px 0; flex-wrap: wrap; }
+.map-toolbar .os-toggle { margin: 0; }
+.map-legend { display: inline-flex; gap: 10px; flex-wrap: wrap; margin-left: auto; }
+.lg { font-size: 11px; color: var(--muted); display: inline-flex; align-items: center; gap: 5px; }
+.lg::before { content: ''; width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.lg-attacker::before { background: #39ff14; } .lg-subnet::before { background: #2bc40f; border-radius: 2px; }
+.lg-dc::before { background: #ff4d4d; } .lg-windows::before { background: #4da6ff; }
+.lg-web::before { background: #ffb000; } .lg-db::before { background: #ff8c00; } .lg-host::before { background: #9dffb0; }
+
+.map-wrap { position: relative; border: 1px solid var(--border); border-radius: 8px; background: #050805; overflow: hidden; }
+.cy { width: 100%; height: 70vh; }
+.map-panel { position: absolute; top: 0; right: 0; width: 300px; height: 100%; background: var(--panel);
+  border-left: 1px solid var(--border); padding: 14px; overflow-y: auto; }
+.map-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.map-panel-head #mp-ip { color: var(--green-soft); font-weight: 700; word-break: break-all; }
+.mp-ports { list-style: none; padding: 0; margin: 6px 0 12px; font-size: 12px; }
+.mp-ports li { padding: 3px 0; border-bottom: 1px solid var(--border); color: var(--green-soft); }
+.mp-links { display: flex; gap: 6px; flex-wrap: wrap; }

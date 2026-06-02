@@ -34,6 +34,8 @@
            class="{{ 'active' if request.endpoint == 'ad.ad' }}">Active Directory</a>
         <a href="{{ url_for('results.results') }}"
            class="{{ 'active' if request.endpoint == 'results.results' }}">Scan Results</a>
+        <a href="{{ url_for('netmap.netmap') }}"
+           class="{{ 'active' if request.endpoint == 'netmap.netmap' }}">Network Map</a>
         <a href="{{ url_for('shells.shells') }}"
            class="{{ 'active' if request.endpoint == 'shells.shells' }}">Reverse Shells</a>
         <a href="{{ url_for('files.files') }}"

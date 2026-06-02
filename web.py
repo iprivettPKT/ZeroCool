@@ -204,6 +204,9 @@ def web():
     default_url = ""
     if targets:
         default_url = targets[0] if targets[0].startswith("http") else "http://" + targets[0]
+    qt = (request.args.get("target") or "").strip()
+    if qt:
+        default_url = qt if qt.startswith("http") else "http://" + qt
     return render_template("web.html", eng=eng, catalog=catalog, categories=cats,
                            default_url=default_url, dir_wl=DIR_WL)
 
