@@ -71,7 +71,7 @@ PACKAGES = {
     "enum4linux-ng":    {"label": "enum4linux-ng", "install": "pipx install enum4linux-ng || sudo apt-get install -y enum4linux-ng"},
     "bloodhound-python": {"label": "BloodHound.py", "install": "pipx install bloodhound"},
     "ldapsearch":       {"label": "ldap-utils (ldapsearch)", "install": "sudo apt-get install -y ldap-utils"},
-    "pre2k":            {"label": "pre2k", "install": "pipx install pre2k"},
+    "pre2k":            {"label": "pre2k", "install": "pipx install git+https://github.com/garrettfoster13/pre2k"},
     "rpcclient":        {"label": "Samba client (rpcclient)", "install": "sudo apt-get install -y smbclient"},
     "impacket-secretsdump": {"label": "Impacket suite", "install": "pipx install impacket || sudo apt-get install -y python3-impacket"},
 }
@@ -107,13 +107,13 @@ PACKAGES.update({
 # Cloud recon tools.
 PACKAGES.update({
     "aws":          {"label": "AWS CLI", "install": "pipx install awscli || sudo apt-get install -y awscli"},
-    "az":           {"label": "Azure CLI", "install": "curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash"},
-    "gcloud":       {"label": "Google Cloud SDK", "install": "sudo apt-get install -y google-cloud-cli"},
+    "az":           {"label": "Azure CLI", "install": "pipx install azure-cli"},
+    "gcloud":       {"label": "Google Cloud SDK", "install": "curl -sSL https://sdk.cloud.google.com | bash -s -- --disable-prompts"},
     "scout":        {"label": "ScoutSuite", "install": "pipx install scoutsuite"},
     "prowler":      {"label": "Prowler", "install": "pipx install prowler"},
-    "cloud_enum":   {"label": "cloud_enum", "install": "pipx install cloud-enum"},
+    "cloud_enum":   {"label": "cloud_enum", "install": "pipx install git+https://github.com/initstring/cloud_enum"},
     "s3scanner":    {"label": "S3Scanner", "install": "pipx install s3scanner"},
-    "o365spray":    {"label": "o365spray", "install": "pipx install o365spray"},
+    "o365spray":    {"label": "o365spray", "install": "pipx install o365spray || pipx install git+https://github.com/0xZDH/o365spray"},
     "subfinder":    {"label": "subfinder", "install": "go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"},
     "amass":        {"label": "amass", "install": "sudo apt-get install -y amass"},
     "azurehound":   {"label": "AzureHound", "install": "go install github.com/bloodhoundad/azurehound/v2@latest"},
@@ -160,6 +160,7 @@ def extra_bin_dirs() -> list[str]:
         os.path.expanduser("~/.local/bin"),
         os.path.expanduser("~/go/bin"),
         os.path.expanduser("~/.cargo/bin"),
+        os.path.expanduser("~/google-cloud-sdk/bin"),  # gcloud/gsutil install script
         "/usr/local/bin", "/usr/local/go/bin", "/snap/bin", "/opt/bin",
     ]
     gp = os.environ.get("GOPATH")
