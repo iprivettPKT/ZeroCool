@@ -154,7 +154,7 @@ label { display: block; margin-bottom: 12px; color: var(--muted); font-size: 12p
 input[type="text"], textarea {
   width: 100%;
   margin-top: 5px;
-  background: #060906;
+  background: var(--input-bg);
   border: 1px solid var(--border);
   border-radius: 5px;
   color: var(--text);
@@ -214,7 +214,7 @@ textarea { resize: vertical; }
 .prompt { color: var(--green); white-space: nowrap; font-weight: 700; }
 .cmd-input {
   flex: 1;
-  background: #060906;
+  background: var(--input-bg);
   border: 1px solid var(--border);
   border-radius: 5px;
   color: var(--green-soft);
@@ -228,7 +228,7 @@ textarea { resize: vertical; }
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
-  background: #050805;
+  background: var(--term-bg);
   box-shadow: 0 0 30px rgba(57,255,20,.04) inset;
 }
 .term-head {
@@ -285,7 +285,7 @@ textarea { resize: vertical; }
 .recon-grid { display: grid; grid-template-columns: 1fr 360px; gap: 20px; margin: 18px 0; align-items: start; }
 .recon-form fieldset { margin-bottom: 16px; }
 .recon-form select {
-  width: 100%; margin-top: 5px; background: #060906; border: 1px solid var(--border);
+  width: 100%; margin-top: 5px; background: var(--input-bg); border: 1px solid var(--border);
   border-radius: 5px; color: var(--text); padding: 8px 10px; font-family: var(--mono); font-size: 13px;
 }
 .recon-form .radio, .recon-form .check {
@@ -301,7 +301,7 @@ textarea { resize: vertical; }
   color: var(--green); text-transform: uppercase; letter-spacing: 1px; font-size: 11px; margin-bottom: 10px;
 }
 .cmd-preview {
-  background: #060906; border: 1px solid var(--border); border-radius: 5px; padding: 10px 12px;
+  background: var(--input-bg); border: 1px solid var(--border); border-radius: 5px; padding: 10px 12px;
   color: var(--green-soft); font-size: 13px; white-space: pre-wrap; word-break: break-all; margin: 0;
 }
 .warnings { margin-top: 10px; }
@@ -331,7 +331,7 @@ textarea { resize: vertical; }
 .overrides { margin-top: 8px; }
 .overrides summary { color: var(--muted); cursor: pointer; font-size: 12px; }
 .ad-detail select {
-  width: 100%; margin-top: 5px; background: #060906; border: 1px solid var(--border);
+  width: 100%; margin-top: 5px; background: var(--input-bg); border: 1px solid var(--border);
   border-radius: 5px; color: var(--text); padding: 8px 10px; font-family: var(--mono); font-size: 13px;
 }
 .ad-detail .preview-box { margin-top: 4px; }
@@ -351,13 +351,13 @@ textarea { resize: vertical; }
 .results-bar { display: flex; gap: 14px; align-items: flex-end; margin: 16px 0; flex-wrap: wrap; }
 .results-bar label { margin: 0; flex: 1; min-width: 180px; }
 .results-bar select, .results-bar input {
-  width: 100%; margin-top: 5px; background: #060906; border: 1px solid var(--border);
+  width: 100%; margin-top: 5px; background: var(--input-bg); border: 1px solid var(--border);
   border-radius: 5px; color: var(--text); padding: 8px 10px; font-family: var(--mono); font-size: 13px;
 }
 .stat-row.big { margin: 8px 0 18px; }
 .results-actions { display: flex; gap: 10px; align-items: center; margin: 8px 0 14px; }
 .filter-input {
-  flex: 1; background: #060906; border: 1px solid var(--border); border-radius: 5px;
+  flex: 1; background: var(--input-bg); border: 1px solid var(--border); border-radius: 5px;
   color: var(--green-soft); padding: 8px 11px; font-family: var(--mono); font-size: 13px;
 }
 .filter-input:focus { outline: none; border-color: var(--green-dim); }
@@ -385,7 +385,7 @@ textarea { resize: vertical; }
 
 /* ---------- handlers: shells + files ---------- */
 .inline-form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 14px 0; }
-.port-in { width: 90px; background: #060906; border: 1px solid var(--border); border-radius: 5px;
+.port-in { width: 90px; background: var(--input-bg); border: 1px solid var(--border); border-radius: 5px;
   color: var(--green-soft); padding: 7px 9px; font-family: var(--mono); font-size: 13px; }
 .port-in.wide { width: 150px; }
 .btn.xs { padding: 2px 8px; font-size: 11px; }
@@ -395,7 +395,7 @@ textarea { resize: vertical; }
 .pl-portrow { display: flex; align-items: center; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
 .pl-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; border-top: 1px solid var(--border); }
 .pl-label { color: var(--muted); width: 110px; flex-shrink: 0; font-size: 12px; }
-.pl-cmd { flex: 1; color: var(--green-soft); font-size: 12px; word-break: break-all; background: #060906; padding: 5px 8px; border-radius: 4px; }
+.pl-cmd { flex: 1; color: var(--green-soft); font-size: 12px; word-break: break-all; background: var(--input-bg); padding: 5px 8px; border-radius: 4px; }
 .mini-h { color: var(--amber); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin: 14px 0 4px; }
 
 .shells-grid { display: grid; grid-template-columns: 240px 1fr; gap: 16px; align-items: start; }
@@ -428,8 +428,8 @@ textarea { resize: vertical; }
 
 /* ---------- shells: xterm console + PTY upgrade ---------- */
 .sess-toolbar { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--panel); border: 1px solid var(--border); border-bottom: none; border-radius: 8px 8px 0 0; flex-wrap: wrap; }
-.sess-toolbar select { background: #060906; border: 1px solid var(--border); border-radius: 5px; color: var(--text); padding: 5px 8px; font-family: var(--mono); font-size: 12px; }
-.xterm-host { height: 440px; background: #050805; border: 1px solid var(--border); border-top: none; padding: 6px 8px; }
+.sess-toolbar select { background: var(--input-bg); border: 1px solid var(--border); border-radius: 5px; color: var(--text); padding: 5px 8px; font-family: var(--mono); font-size: 12px; }
+.xterm-host { height: 440px; background: var(--term-bg); border: 1px solid var(--border); border-top: none; padding: 6px 8px; }
 .shells-main .sess-input-row { border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px; }
 
 /* ---------- quick terminal drawer ---------- */
@@ -460,7 +460,7 @@ textarea { resize: vertical; }
 .zc-iconbtn { background: var(--panel-2); border: 1px solid var(--border); color: var(--green-soft); border-radius: 5px; cursor: pointer; width: 26px; height: 26px; font-size: 15px; }
 .zc-iconbtn:hover { border-color: var(--green-dim); }
 .zc-spacer { flex: 1; }
-.zc-cwd-in { width: 130px; background: #060906; border: 1px solid var(--border); border-radius: 5px; color: var(--text); padding: 4px 7px; font-family: var(--mono); font-size: 11px; }
+.zc-cwd-in { width: 130px; background: var(--input-bg); border: 1px solid var(--border); border-radius: 5px; color: var(--text); padding: 4px 7px; font-family: var(--mono); font-size: 11px; }
 .zc-panes { flex: 1; position: relative; overflow: hidden; }
 .zc-pane { position: absolute; inset: 0; display: none; flex-direction: column; }
 .zc-pane.show { display: flex; }
@@ -481,13 +481,13 @@ textarea { resize: vertical; }
 
 /* ---------- privesc: send-to-session ---------- */
 .pv-session-bar { display: flex; align-items: center; gap: 10px; margin: 6px 0 14px; flex-wrap: wrap; }
-.pv-session-bar select { background: #060906; border: 1px solid var(--border); border-radius: 5px; color: var(--green-soft); padding: 5px 9px; font-family: var(--mono); font-size: 12px; min-width: 200px; }
+.pv-session-bar select { background: var(--input-bg); border: 1px solid var(--border); border-radius: 5px; color: var(--green-soft); padding: 5px 9px; font-family: var(--mono); font-size: 12px; min-width: 200px; }
 .pl-send { color: var(--green) !important; }
 .pl-send:hover { border-color: var(--green-dim); }
 
 /* ---------- AD: send-to-session ---------- */
 .action-sep { flex: 1; }
-.ad-session-sel { background: #060906; border: 1px solid var(--border); border-radius: 5px; color: var(--green-soft); padding: 6px 9px; font-family: var(--mono); font-size: 12px; min-width: 170px; }
+.ad-session-sel { background: var(--input-bg); border: 1px solid var(--border); border-radius: 5px; color: var(--green-soft); padding: 6px 9px; font-family: var(--mono); font-size: 12px; min-width: 170px; }
 .preview-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 /* ---------- drawer: stop button ---------- */
@@ -517,7 +517,7 @@ textarea { resize: vertical; }
 .report-meta { color: var(--muted); font-size: 13px; }
 .report-finding { border-left: 2px solid var(--border); padding-left: 14px; margin: 16px 0; }
 .report-finding h3 { margin: 0 0 4px; color: var(--text); }
-.report-pre { background: #060906; border: 1px solid var(--border); border-radius: 5px; padding: 8px 10px; white-space: pre-wrap; word-break: break-word; }
+.report-pre { background: var(--input-bg); border: 1px solid var(--border); border-radius: 5px; padding: 8px 10px; white-space: pre-wrap; word-break: break-word; }
 .report-table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 13px; }
 .report-table th { text-align: left; color: var(--muted); font-size: 11px; text-transform: uppercase; padding: 6px 10px; border-bottom: 1px solid var(--border); }
 .report-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
@@ -557,7 +557,7 @@ textarea { resize: vertical; }
 .lg-dc::before { background: #ff4d4d; } .lg-windows::before { background: #4da6ff; }
 .lg-web::before { background: #ffb000; } .lg-db::before { background: #ff8c00; } .lg-host::before { background: #9dffb0; }
 
-.map-wrap { position: relative; border: 1px solid var(--border); border-radius: 8px; background: #050805; overflow: hidden; }
+.map-wrap { position: relative; border: 1px solid var(--border); border-radius: 8px; background: var(--term-bg); overflow: hidden; }
 .cy { width: 100%; height: 70vh; }
 .map-panel { position: absolute; top: 0; right: 0; width: 300px; height: 100%; background: var(--panel);
   border-left: 1px solid var(--border); padding: 14px; overflow-y: auto; }
@@ -582,9 +582,9 @@ textarea { resize: vertical; }
 .ss-dialog { background: var(--panel); border: 1px solid var(--green-dim); border-radius: 8px; width: min(560px, 92vw); max-height: 90vh; overflow: auto; box-shadow: 0 0 40px rgba(0,0,0,.5); }
 .ss-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--green-soft); }
 .ss-body { padding: 14px; }
-.ss-preview { width: 100%; max-height: 240px; object-fit: contain; border: 1px solid var(--border); border-radius: 5px; background: #050805; margin-bottom: 12px; }
+.ss-preview { width: 100%; max-height: 240px; object-fit: contain; border: 1px solid var(--border); border-radius: 5px; background: var(--term-bg); margin-bottom: 12px; }
 .ss-body label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 10px; }
-.ss-body input, .ss-body select, .ss-body textarea { width: 100%; margin-top: 4px; background: #060906; border: 1px solid var(--border); border-radius: 5px; color: var(--text); padding: 7px 9px; font-family: var(--mono); font-size: 13px; }
+.ss-body input, .ss-body select, .ss-body textarea { width: 100%; margin-top: 4px; background: var(--input-bg); border: 1px solid var(--border); border-radius: 5px; color: var(--text); padding: 7px 9px; font-family: var(--mono); font-size: 13px; }
 .ss-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 10px; }
 .ss-actions { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
 
@@ -599,3 +599,29 @@ textarea { resize: vertical; }
 
 /* ---------- advanced settings ---------- */
 .sub-h { color: var(--green-soft); font-size: 14px; margin: 18px 0 6px; }
+
+/* ---------- theme variables + light theme ---------- */
+:root { --input-bg: #060906; --term-bg: #050805; }
+body { transition: background .15s, color .15s; }
+
+[data-theme="light"] {
+  --bg: #e9ede8;
+  --panel: #ffffff;
+  --panel-2: #eef2ed;
+  --border: #ccd6cc;
+  --green: #178a0d;
+  --green-dim: #15800c;
+  --green-soft: #0d5a07;
+  --text: #1a241b;
+  --muted: #5d6e5d;
+  --amber: #9a6400;
+  --red: #c62828;
+  --input-bg: #ffffff;
+  --term-bg: #f6faf5;
+}
+/* keep contrast on the green action buttons in light mode */
+[data-theme="light"] .btn.primary,
+[data-theme="light"] .os-btn.sel,
+[data-theme="light"] .zc-drawer-toggle { color: #ffffff; }
+/* the brand glow reads better as solid green on light */
+[data-theme="light"] .brand-glyph { text-shadow: none; }

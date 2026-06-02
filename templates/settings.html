@@ -4,10 +4,16 @@
 {% block content %}
 <header class="page-head">
   <h1>Advanced Settings</h1>
-  <p class="muted">Remote access and host configuration.</p>
+  <p class="muted">Appearance, remote access and host configuration.</p>
 </header>
 
-<h2 class="sec-h">Remote access</h2>
+<h2 class="sec-h">Appearance</h2>
+<div class="os-toggle">
+  <button type="button" class="os-btn" data-theme-set="dark">Dark</button>
+  <button type="button" class="os-btn" data-theme-set="light">Light</button>
+</div>
+
+<h2 class="sec-h" style="margin-top:24px">Remote access</h2>
 <p class="hint">ZeroCool's UI is bound to <code>127.0.0.1</code> (it runs commands as root — never expose it on a network).
   Reach it from another machine by forwarding the port over SSH.</p>
 
@@ -91,5 +97,15 @@ function copyBtn(btnId, srcId) {
 copyBtn('copy-cmd', 'ssh-cmd');
 copyBtn('copy-svc', 'svc-install');
 render();
+
+// theme toggle
+function applyTheme(t) {
+  if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  else document.documentElement.removeAttribute('data-theme');
+  try { localStorage.setItem('zc-theme', t); } catch (e) {}
+  document.querySelectorAll('[data-theme-set]').forEach(b => b.classList.toggle('sel', b.dataset.themeSet === t));
+}
+document.querySelectorAll('[data-theme-set]').forEach(b => b.addEventListener('click', () => applyTheme(b.dataset.themeSet)));
+applyTheme(localStorage.getItem('zc-theme') || 'dark');
 </script>
 {% endblock %}

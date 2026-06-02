@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ZeroCool{% block title %}{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/zerocool.css') }}">
+  <script>try{if(localStorage.getItem('zc-theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
   {% block head %}{% endblock %}
 </head>
 <body>
