@@ -37,6 +37,7 @@
           <div class="nav-group-head"><span>Attack</span><span class="chev">▾</span></div>
           <div class="nav-group-items">
             <a href="{{ url_for('ad.ad') }}" class="{{ 'active' if request.endpoint == 'ad.ad' }}">Active Directory</a>
+            <a href="{{ url_for('spray.spray') }}" class="{{ 'active' if request.endpoint == 'spray.spray' }}">Password Spray</a>
             <a href="{{ url_for('web.web') }}" class="{{ 'active' if request.endpoint == 'web.web' }}">Web</a>
             <a href="{{ url_for('privesc.privesc') }}" class="{{ 'active' if request.endpoint == 'privesc.privesc' }}">Privilege Escalation</a>
           </div>

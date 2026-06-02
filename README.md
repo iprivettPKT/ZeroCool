@@ -27,6 +27,7 @@ every command logged.
 | **Scan Results** | Parses nmap XML (incl. NSE script output) into a hosts/services view; promote hosts to targets; jump into AD/Web. |
 | **Network Map** | Interactive graph (Cytoscape.js) of the discovered network — topology (attacker → subnet → host, coloured by role) and a services view, with per-host quick-links. |
 | **Active Directory** | 100+ actions — enumeration, Kerberos (AS-REP/Kerberoast/S4U/ticketer), secrets/DCSync, an extensive NetExec catalog (DPAPI, lsassy, GPP, LAPS, gMSA, WebDAV, exec, file transfer…), BloodHound, lateral movement, coercion (PetitPotam/PrinterBug/DFSCoerce/ShadowCoerce/ntlmrelayx), ADCS/Certipy, and a large set of vuln/misconfig checks. |
+| **Password Spray** | Lockout-safe spraying (NetExec SMB/LDAP/WinRM/MSSQL, Kerbrute) — fetch the policy, then spray one password per round with a sleep past the observation window so badPwdCount never climbs toward the threshold. |
 | **Web** | ffuf / feroxbuster / gobuster / dirsearch / whatweb / nuclei / nikto / wpscan / sqlmap / gowitness, driven by URL + wordlist. |
 | **Cloud Recon** | AWS / Azure / GCP / M365-Entra / multi-cloud enumeration (ScoutSuite, Prowler, AzureHound, ROADrecon, cloud_enum, S3Scanner, o365spray, subfinder…) from a keyword + domain. |
 | **Privilege Escalation** | Linux & Windows technique catalog (LinPEAS/WinPEAS/PowerUp, SUID/sudo/caps, Potato, AlwaysInstallElevated, …) with stage-and-serve helpers. |

@@ -644,3 +644,6 @@ body { transition: background .15s, color .15s; }
 .nav-group.collapsed .chev { transform: rotate(-90deg); }
 .nav-group.collapsed .nav-group-items { display: none; }
 .nav-group-items { display: flex; flex-direction: column; gap: 2px; }
+
+/* ---------- password spray ---------- */
+.pol-fetch { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }

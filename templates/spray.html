@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %} — Password Spray{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <h1>Password Spray</h1>
+  <p class="muted">Spray safely — one password per round, waiting past the lockout window so <code>badPwdCount</code> never climbs. Get the policy first.</p>
+</header>
+
+<div class="recon-grid">
+  <form id="spray-form" class="form recon-form">
+    <fieldset>
+      <legend>Target</legend>
+      <div class="field-grid">
+        <label>Tool
+          <select name="tool" id="sp-tool">{% for k, v in tools.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+        </label>
+        <label>DC / host <input type="text" name="target" value="{{ eng.dc_ip }}" placeholder="10.10.0.5"></label>
+        <label>Domain <input type="text" name="domain" value="{{ eng.domain }}" placeholder="corp.local"></label>
+        <label>Users file <input type="text" name="userlist" value="users.txt"></label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Passwords <span class="muted small">(one per line — multiple → spaced rounds)</span></legend>
+      <textarea name="passwords" rows="4" placeholder="Summer2026!&#10;Winter2026!&#10;Welcome1"></textarea>
+    </fieldset>
+
+    <fieldset>
+      <legend>Lockout safety</legend>
+      <div class="field-grid">
+        <label>Lockout threshold <input type="text" name="threshold" placeholder="(from policy)"></label>
+        <label>Observation window (min) <input type="text" name="window" value="30"></label>
+        <label>Delay between rounds (s) <input type="text" name="delay" placeholder="(auto = window+1m)"></label>
+      </div>
+      <div class="pol-fetch">
+        <span class="muted small">Get policy with</span>
+        <input type="text" id="pol-user" class="port-in wide" value="{{ pol_user }}" placeholder="user">
+        <input type="text" id="pol-pass" class="port-in wide" value="{{ pol_pass }}" placeholder="password">
+        <button type="button" id="pol-btn" class="btn ghost sm">Get password policy</button>
+      </div>
+    </fieldset>
+  </form>
+
+  <div class="recon-side">
+    <div class="preview-box">
+      <div class="preview-head"><span>Spray command</span></div>
+      <pre id="sp-preview" class="cmd-preview"></pre>
+      <div id="sp-warnings" class="warnings"></div>
+      <div class="preview-actions">
+        <button id="run-btn" class="btn primary">Run</button>
+        <button id="kill-btn" class="btn" disabled>Stop</button>
+        <button id="copy-btn" class="btn ghost">Copy</button>
+      </div>
+    </div>
+    <div class="preview-box" style="margin-top:12px">
+      <div class="preview-head"><span>Lockout plan</span></div>
+      <div id="sp-plan" class="notes"></div>
+    </div>
+  </div>
+</div>
+
+<div class="terminal" id="terminal">
+  <div class="term-head">
+    <span class="dot red"></span><span class="dot amber"></span><span class="dot green"></span>
+    <span data-term-status class="term-status status-idle">idle</span>
+    <span data-term-cmd class="term-cmd"></span>
+  </div>
+  <pre data-term-output class="term-output"></pre>
+</div>
+<p class="hint">Valid hits show as <code>[+]</code> — paste them into <a href="{{ url_for('creds.creds') }}">Credentials</a>.</p>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/zeroterm.js') }}"></script>
+<script>
+const form = document.getElementById('spray-form');
+const preview = document.getElementById('sp-preview');
+const planEl = document.getElementById('sp-plan');
+const warnings = document.getElementById('sp-warnings');
+const runBtn = document.getElementById('run-btn');
+const killBtn = document.getElementById('kill-btn');
+const LOOT = {{ (eng.output_dir or '')|tojson }};
+const term = ZeroTerm.attach(document.getElementById('terminal'));
+let currentCommand = '', running = false;
+
+function params() { const fd = new FormData(form), o = {}; for (const [k, v] of fd.entries()) o[k] = v; return o; }
+
+let debounce = null;
+function refresh() {
+  clearTimeout(debounce);
+  debounce = setTimeout(async () => {
+    try {
+      const d = await (await fetch('{{ url_for("spray.spray_build") }}', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(params())
+      })).json();
+      currentCommand = d.command || '';
+      preview.textContent = currentCommand;
+      runBtn.disabled = running || !currentCommand;
+      warnings.innerHTML = '';
+      (d.warnings || []).forEach(w => { const e = document.createElement('div'); e.className = 'warn'; e.textContent = '⚠ ' + w; warnings.appendChild(e); });
+      planEl.innerHTML = '';
+      (d.plan || []).forEach(p => { const e = document.createElement('div'); e.className = 'note'; e.textContent = '• ' + p; planEl.appendChild(e); });
+    } catch (e) {}
+  }, 150);
+}
+form.addEventListener('input', refresh);
+form.addEventListener('change', refresh);
+
+term.onState(s => { running = (s === 'running'); runBtn.disabled = running || !currentCommand; killBtn.disabled = !running; });
+runBtn.addEventListener('click', () => { if (currentCommand && !running) term.run(currentCommand, LOOT); });
+killBtn.addEventListener('click', () => term.kill());
+document.getElementById('copy-btn').addEventListener('click', () => navigator.clipboard?.writeText(currentCommand));
+
+// fetch domain password policy (needs one valid cred)
+document.getElementById('pol-btn').addEventListener('click', () => {
+  const t = form.elements.target.value || 'DC_IP';
+  const u = document.getElementById('pol-user').value, p = document.getElementById('pol-pass').value;
+  term.run(`nxc smb ${t} -u '${u}' -p '${p}' --pass-pol`, LOOT);
+});
+
+refresh();
+</script>
+{% endblock %}
