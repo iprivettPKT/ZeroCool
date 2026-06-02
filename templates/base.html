@@ -26,6 +26,8 @@
            class="{{ 'active' if request.endpoint == 'terminal' }}">Terminal</a>
         <a href="{{ url_for('activity') }}"
            class="{{ 'active' if request.endpoint in ['activity', 'activity_detail'] }}">Activity Log</a>
+        <a href="{{ url_for('creds.creds') }}"
+           class="{{ 'active' if request.endpoint == 'creds.creds' }}">Credentials</a>
         <a href="{{ url_for('tools_page') }}"
            class="{{ 'active' if request.endpoint == 'tools_page' }}">Dependencies</a>
         <a href="{{ url_for('settings.settings') }}"

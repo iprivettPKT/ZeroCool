@@ -20,6 +20,7 @@ every command logged.
 | **Engagement** | Central profile: scope, targets, domain/DC, attacker IP, interface, loot dir, credentials, SOCKS proxy. Everything else reads from here. |
 | **Terminal** | Run arbitrary commands with live streaming output. |
 | **Activity Log** | Every command ever run, with full output, status and exit code (audit trail). |
+| **Credentials** | Structured cred store — paste-to-parse (secretsdump / NTDS / Kerberoast / hashes), hashcat cracking with cracked-result import, and promote-to-engagement so the AD/Web/Cloud pickers can use them. |
 | **Dependencies** | Status of required tools; auto-fetch missing scripts, one-click install of packaged tools. |
 | **Advanced Settings** | Remote access for a headless box — auto-detects the VPN IP and builds the `ssh -L` tunnel command (with optional private key), a one-command connect script for your client, and a systemd unit for auto-start. |
 | **Recon & Scanning** | Build & run nmap from your scope/targets (profiles, detection, timing); saves `-oA` output. |

@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %} — Credentials{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <h1>Credentials</h1>
+  <p class="muted">Everything you've collected — paste tool output to auto-extract, crack hashes, and push usable creds into the engagement.</p>
+</header>
+
+<div class="stat-row big">
+  <div class="stat"><span class="num">{{ creds|length }}</span><span class="lbl">total</span></div>
+  <div class="stat"><span class="num">{{ cracked }}</span><span class="lbl">cracked</span></div>
+  {% for t, n in counts.items() %}<div class="stat"><span class="num">{{ n }}</span><span class="lbl">{{ t }}</span></div>{% endfor %}
+</div>
+
+<section>
+  <h2 class="sec-h">Import — paste &amp; parse</h2>
+  <p class="hint">Drop in <code>secretsdump</code> / NTDS / SAM / <code>hashcat</code> hashes / Kerberoast / AS-REP output. Recognised lines become credentials.</p>
+  <textarea id="dump" rows="5" class="dump-in" placeholder="CORP\Administrator:500:aad3b...:31d6cfe0d16ae931b73c59d7e0c089c0:::&#10;corp.local/svc_sql:Summer2026!&#10;$krb5tgs$23$*svc$CORP.LOCAL$...">
+  </textarea>
+  <div class="dep-actions"><button id="parse-btn" class="btn primary sm">Parse &amp; add</button><span id="parse-msg" class="muted small"></span></div>
+</section>
+
+<section>
+  <h2 class="sec-h">Crack hashes (hashcat)</h2>
+  <div class="conn-grid">
+    <label>Hash type
+      <select id="crack-type">{% for t in crackable %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select>
+    </label>
+    <label>Wordlist <input type="text" id="crack-wl" value="{{ default_wordlist }}"></label>
+    <label>Rules <span class="muted small">(optional)</span> <input type="text" id="crack-rules" placeholder="/usr/share/hashcat/rules/best64.rule"></label>
+  </div>
+  <div class="dep-actions">
+    <button id="crack-btn" class="btn primary sm">Build &amp; run</button>
+    <button id="import-cracked-btn" class="btn sm">Import cracked</button>
+    <span id="crack-msg" class="muted small"></span>
+  </div>
+</section>
+
+<section>
+  <h2 class="sec-h">Stored credentials</h2>
+  {% if not creds %}<p class="muted">None yet — import some above.</p>{% else %}
+  <table class="log-table cred-store">
+    <thead><tr><th>Principal</th><th>Type</th><th>Secret</th><th>Cracked</th><th>Source</th><th></th></tr></thead>
+    <tbody>
+      {% for c in creds %}
+      <tr>
+        <td class="nowrap"><b>{{ c.domain }}{{ '\\' if c.domain }}{{ c.username }}</b></td>
+        <td><span class="badge badge-pending">{{ c.type }}</span></td>
+        <td class="cred-val" title="{{ c.value }}">{{ c.value[:48] }}{{ '…' if c.value|length > 48 }}</td>
+        <td class="cred-cracked">{{ c.cracked }}</td>
+        <td class="muted small">{{ c.source }}</td>
+        <td class="nowrap">
+          <button class="btn ghost sm promote-btn" data-id="{{ c.id }}" title="add to engagement creds">→ eng</button>
+          <button class="btn-icon del-btn" data-id="{{ c.id }}">✕</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <details class="add-finding" style="margin-top:14px">
+    <summary>+ Add manually</summary>
+    <div class="field-grid">
+      <label>Domain <input type="text" id="m-domain"></label>
+      <label>Username <input type="text" id="m-user"></label>
+      <label>Type <select id="m-type"><option>password</option><option>ntlm</option><option>krb5tgs</option><option>krb5asrep</option><option>aes256</option><option>dcc2</option></select></label>
+      <label>Secret / hash <input type="text" id="m-value"></label>
+    </div>
+    <button id="add-btn" class="btn primary">Add credential</button>
+  </details>
+</section>
+
+<div class="terminal" id="terminal" style="margin-top:18px">
+  <div class="term-head">
+    <span class="dot red"></span><span class="dot amber"></span><span class="dot green"></span>
+    <span data-term-status class="term-status status-idle">cracking output</span>
+    <span data-term-cmd class="term-cmd"></span>
+  </div>
+  <pre data-term-output class="term-output"></pre>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/zeroterm.js') }}"></script>
+<script>
+const term = ZeroTerm.attach(document.getElementById('terminal'), { clearOnRun: false });
+async function postJSON(url, body) { return (await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body || {})})).json(); }
+
+document.getElementById('parse-btn').addEventListener('click', async () => {
+  const msg = document.getElementById('parse-msg'); msg.textContent = 'parsing…';
+  const d = await postJSON('/creds/import', {dump: document.getElementById('dump').value});
+  msg.textContent = `parsed ${d.parsed}, added ${d.added} new`;
+  if (d.added) setTimeout(() => location.reload(), 900);
+});
+
+document.getElementById('crack-btn').addEventListener('click', async () => {
+  const msg = document.getElementById('crack-msg'); msg.textContent = 'building…';
+  const d = await postJSON('/creds/crack', {
+    type: document.getElementById('crack-type').value,
+    wordlist: document.getElementById('crack-wl').value,
+    rules: document.getElementById('crack-rules').value,
+  });
+  if (d.error) { msg.textContent = d.error; return; }
+  msg.textContent = `cracking ${d.count} hash(es)…`;
+  term.run(d.command, '');
+});
+
+document.getElementById('import-cracked-btn').addEventListener('click', async () => {
+  const msg = document.getElementById('crack-msg'); msg.textContent = 'reading potfile…';
+  const d = await postJSON('/creds/import-cracked', {});
+  msg.textContent = `imported ${d.updated} cracked`;
+  if (d.updated) setTimeout(() => location.reload(), 900);
+});
+
+document.getElementById('add-btn').addEventListener('click', async () => {
+  const d = await postJSON('/creds/add', {
+    domain: document.getElementById('m-domain').value, username: document.getElementById('m-user').value,
+    type: document.getElementById('m-type').value, value: document.getElementById('m-value').value, source: 'manual',
+  });
+  if (d.added) location.reload();
+});
+
+document.querySelectorAll('.promote-btn').forEach(b => b.addEventListener('click', async () => {
+  const d = await postJSON('/creds/' + b.dataset.id + '/promote', {});
+  b.textContent = d.ok ? '✓ eng' : 'n/a'; setTimeout(() => b.textContent = '→ eng', 1200);
+}));
+document.querySelectorAll('.del-btn').forEach(b => b.addEventListener('click', async () => {
+  if (!confirm('Delete this credential?')) return;
+  await postJSON('/creds/' + b.dataset.id + '/delete', {}); location.reload();
+}));
+</script>
+{% endblock %}

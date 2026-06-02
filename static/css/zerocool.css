@@ -625,3 +625,9 @@ body { transition: background .15s, color .15s; }
 [data-theme="light"] .zc-drawer-toggle { color: #ffffff; }
 /* the brand glow reads better as solid green on light */
 [data-theme="light"] .brand-glyph { text-shadow: none; }
+
+/* ---------- credentials ---------- */
+.dump-in { width: 100%; background: var(--input-bg); border: 1px solid var(--border); border-radius: 5px;
+  color: var(--green-soft); padding: 9px 11px; font-family: var(--mono); font-size: 12px; resize: vertical; }
+.cred-store .cred-val { font-family: var(--mono); font-size: 11px; color: var(--muted); word-break: break-all; max-width: 360px; }
+.cred-store .cred-cracked { color: var(--green); font-weight: 700; font-family: var(--mono); }
