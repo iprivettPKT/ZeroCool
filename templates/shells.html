@@ -68,16 +68,23 @@
 <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/xterm-addon-fit.js') }}"></script>
 <script>
+function xtermTheme() {
+  return document.documentElement.getAttribute('data-theme') === 'light'
+    ? { background: '#f6faf5', foreground: '#0d5a07', cursor: '#178a0d', selectionBackground: '#cfe6cf' }
+    : { background: '#050805', foreground: '#9dffb0', cursor: '#39ff14' };
+}
 const term = new Terminal({
   convertEol: true, cursorBlink: true, scrollback: 100000,
   fontFamily: '"JetBrains Mono","Fira Code",monospace', fontSize: 13,
-  theme: { background: '#050805', foreground: '#9dffb0', cursor: '#39ff14' },
+  theme: xtermTheme(),
 });
 const fit = new FitAddon.FitAddon();
 term.loadAddon(fit);
 term.open(document.getElementById('xterm-host'));
 try { fit.fit(); } catch (e) {}
 window.addEventListener('resize', () => { try { fit.fit(); } catch (e) {} });
+// follow theme changes (toggled on the Settings page / another tab)
+window.addEventListener('storage', (e) => { if (e.key === 'zc-theme') term.options.theme = xtermTheme(); });
 
 let es = null, currentSid = null, rawMode = false, restoredSession = false;
 const label = document.getElementById('sess-label');
