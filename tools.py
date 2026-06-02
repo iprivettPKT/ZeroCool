@@ -70,6 +70,7 @@ PACKAGES = {
     "enum4linux-ng":    {"label": "enum4linux-ng", "install": "pipx install enum4linux-ng || sudo apt-get install -y enum4linux-ng"},
     "bloodhound-python": {"label": "BloodHound.py", "install": "pipx install bloodhound"},
     "ldapsearch":       {"label": "ldap-utils (ldapsearch)", "install": "sudo apt-get install -y ldap-utils"},
+    "pre2k":            {"label": "pre2k", "install": "pipx install pre2k"},
     "rpcclient":        {"label": "Samba client (rpcclient)", "install": "sudo apt-get install -y smbclient"},
     "impacket-secretsdump": {"label": "Impacket suite", "install": "pipx install impacket || sudo apt-get install -y python3-impacket"},
 }
