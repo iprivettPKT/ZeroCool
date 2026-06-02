@@ -38,6 +38,7 @@ from privesc import privesc_bp
 from recon import recon_bp
 from reporting import reporting_bp
 from sessions import shells_bp
+from settings import settings_bp
 from web import web_bp
 
 app = Flask(__name__)
@@ -53,6 +54,7 @@ app.register_blueprint(web_bp)
 app.register_blueprint(reporting_bp)
 app.register_blueprint(netmap_bp)
 app.register_blueprint(cloud_bp)
+app.register_blueprint(settings_bp)
 
 
 @app.context_processor

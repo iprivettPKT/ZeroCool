@@ -27,6 +27,8 @@
            class="{{ 'active' if request.endpoint in ['activity', 'activity_detail'] }}">Activity Log</a>
         <a href="{{ url_for('tools_page') }}"
            class="{{ 'active' if request.endpoint == 'tools_page' }}">Dependencies</a>
+        <a href="{{ url_for('settings.settings') }}"
+           class="{{ 'active' if request.endpoint == 'settings.settings' }}">Advanced Settings</a>
         <span class="nav-section">Modules</span>
         <a href="{{ url_for('recon.recon') }}"
            class="{{ 'active' if request.endpoint == 'recon.recon' }}">Recon &amp; Scanning</a>

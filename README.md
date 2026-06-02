@@ -21,6 +21,7 @@ every command logged.
 | **Terminal** | Run arbitrary commands with live streaming output. |
 | **Activity Log** | Every command ever run, with full output, status and exit code (audit trail). |
 | **Dependencies** | Status of required tools; auto-fetch missing scripts, one-click install of packaged tools. |
+| **Advanced Settings** | Remote access for a headless box — auto-detects the VPN IP and builds the `ssh -L` tunnel command (with optional private key), a one-command connect script for your client, and a systemd unit for auto-start. |
 | **Recon & Scanning** | Build & run nmap from your scope/targets (profiles, detection, timing); saves `-oA` output. |
 | **Scan Results** | Parses nmap XML (incl. NSE script output) into a hosts/services view; promote hosts to targets; jump into AD/Web. |
 | **Network Map** | Interactive graph (Cytoscape.js) of the discovered network — topology (attacker → subnet → host, coloured by role) and a services view, with per-host quick-links. |
@@ -66,6 +67,14 @@ python3 app.py
 The control UI binds to `127.0.0.1` only. Listeners and the file server bind
 `0.0.0.0` by design (targets must reach them) — keep those scoped to the
 engagement network.
+
+To reach the UI on a headless box, forward the port over SSH rather than
+exposing it — the **Advanced Settings** page builds the exact tunnel command
+(and an optional connect script / systemd unit) for you:
+
+```bash
+ssh -N -L 5001:127.0.0.1:5001 user@kali-box   # then browse http://127.0.0.1:5001
+```
 
 ## Layout
 

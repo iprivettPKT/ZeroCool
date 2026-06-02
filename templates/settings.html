@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %} — Advanced Settings{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <h1>Advanced Settings</h1>
+  <p class="muted">Remote access and host configuration.</p>
+</header>
+
+<h2 class="sec-h">Remote access</h2>
+<p class="hint">ZeroCool's UI is bound to <code>127.0.0.1</code> (it runs commands as root — never expose it on a network).
+  Reach it from another machine by forwarding the port over SSH.</p>
+
+<section>
+  <h3 class="sub-h">1 · SSH tunnel</h3>
+  <p class="hint">Run this on your Mac / client, then browse to <code>http://127.0.0.1:{{ port }}</code>.</p>
+
+  <div class="conn-grid">
+    <label>SSH user <input type="text" id="ssh-user" value="{{ user }}"></label>
+    <label>Box address
+      <select id="ssh-host">
+        {% for a in ips %}<option value="{{ a.ip }}" {{ 'selected' if a.vpn }}>{{ a.ip }} ({{ a.iface }}{{ ' · VPN' if a.vpn }})</option>{% endfor %}
+        <option value="">— type manually —</option>
+      </select>
+    </label>
+    <label class="hidden" id="host-manual-wrap">Host/IP <input type="text" id="ssh-host-manual" placeholder="10.8.0.5"></label>
+    <label>Port <input type="text" id="ssh-port" value="{{ port }}"></label>
+    <label>Private key <span class="muted small">(on the client, optional)</span>
+      <input type="text" id="ssh-key" placeholder="~/.ssh/id_ed25519"></label>
+  </div>
+
+  {% if not ips %}<div class="warn">⚠ Couldn't auto-detect an address — type the box's VPN IP manually.</div>{% endif %}
+
+  <div class="cmd-out">
+    <code id="ssh-cmd" class="pl-cmd"></code>
+    <button type="button" class="btn ghost sm" id="copy-cmd">copy</button>
+  </div>
+  <p class="hint">Then open <a id="browse-url" href="http://127.0.0.1:{{ port }}" target="_blank">http://127.0.0.1:{{ port }}</a> on the client.</p>
+</section>
+
+<section>
+  <h3 class="sub-h">2 · One-command connect script</h3>
+  <p class="hint">Keep this on your Mac. It opens the tunnel <i>and</i> your browser:
+    <code>./zerocool-connect.sh [-i keyfile] user@box</code></p>
+  <a class="btn" href="{{ url_for('settings.connect_script_dl') }}">Download zerocool-connect.sh</a>
+</section>
+
+<section>
+  <h3 class="sub-h">3 · Auto-start on the headless box</h3>
+  <p class="hint">Install once so ZeroCool always runs — no more SSH-in-and-launch.</p>
+  <a class="btn" href="{{ url_for('settings.connect_service_dl') }}">Download zerocool.service</a>
+  <div class="cmd-out">
+    <code class="pl-cmd" id="svc-install">sudo cp zerocool.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now zerocool</code>
+    <button type="button" class="btn ghost sm" id="copy-svc">copy</button>
+  </div>
+  <p class="hint muted">Runs <code>{{ app_dir }}/app.py</code> as <code>{{ user }}</code>.</p>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const userI = document.getElementById('ssh-user');
+const hostS = document.getElementById('ssh-host');
+const hostM = document.getElementById('ssh-host-manual');
+const hostMW = document.getElementById('host-manual-wrap');
+const portI = document.getElementById('ssh-port');
+const keyI = document.getElementById('ssh-key');
+const cmdEl = document.getElementById('ssh-cmd');
+const browse = document.getElementById('browse-url');
+
+function host() { return (hostS.value || hostM.value || '<box>'); }
+function render() {
+  hostMW.classList.toggle('hidden', !!hostS.value);
+  const u = userI.value || 'user';
+  const p = portI.value || '5001';
+  const key = keyI.value.trim();
+  const ipart = key ? ` -i ${key}` : '';
+  cmdEl.textContent = `ssh -N${ipart} -L ${p}:127.0.0.1:${p} ${u}@${host()}`;
+  browse.textContent = browse.href = `http://127.0.0.1:${p}`;
+}
+[userI, hostS, hostM, portI, keyI].forEach(el => el.addEventListener('input', render));
+hostS.addEventListener('change', render);
+
+function copyBtn(btnId, srcId) {
+  document.getElementById(btnId).addEventListener('click', () => {
+    const b = document.getElementById(btnId);
+    navigator.clipboard?.writeText(document.getElementById(srcId).textContent);
+    b.textContent = 'copied'; setTimeout(() => b.textContent = 'copy', 1000);
+  });
+}
+copyBtn('copy-cmd', 'ssh-cmd');
+copyBtn('copy-svc', 'svc-install');
+render();
+</script>
+{% endblock %}

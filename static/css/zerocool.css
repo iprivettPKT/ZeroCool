@@ -591,3 +591,11 @@ textarea { resize: vertical; }
 /* report screenshot */
 .report-shot { max-width: 100%; border: 1px solid var(--border); border-radius: 5px; margin: 6px 0; }
 @media print { .report-shot { border-color: #999; max-width: 100%; } }
+
+/* ---------- connect page ---------- */
+.conn-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0 16px; margin: 8px 0; }
+.cmd-out { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
+.cmd-out .pl-cmd { flex: 1; }
+
+/* ---------- advanced settings ---------- */
+.sub-h { color: var(--green-soft); font-size: 14px; margin: 18px 0 6px; }
