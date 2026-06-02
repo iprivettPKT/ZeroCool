@@ -85,7 +85,7 @@
       {% for f in findings %}
       <tr>
         <td><span class="badge sev-{{ f.severity|lower }}">{{ f.severity }}</span></td>
-        <td><b>{{ f.title }}</b>{% if f.description %}<div class="muted small">{{ f.description[:120] }}{{ '…' if f.description|length > 120 }}</div>{% endif %}</td>
+        <td><b>{{ f.title }}</b>{% if f.evidence_image %} <a href="{{ url_for('reporting.loot_evidence', name=f.evidence_image) }}" target="_blank" title="screenshot evidence">📷</a>{% endif %}{% if f.description %}<div class="muted small">{{ f.description[:120] }}{{ '…' if f.description|length > 120 }}</div>{% endif %}</td>
         <td class="nowrap">{{ f.host }}{% if f.port %}:{{ f.port }}{% endif %}</td>
         <td>{{ f.status }}</td>
         <td class="nowrap">

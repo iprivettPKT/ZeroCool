@@ -36,6 +36,7 @@
     </p>
     {% if f.description %}<p><b>Description</b><br>{{ f.description }}</p>{% endif %}
     {% if f.evidence %}<p><b>Evidence</b></p><pre class="report-pre">{{ f.evidence }}</pre>{% endif %}
+    {% if f.evidence_image %}<p><b>Evidence (screenshot)</b></p><img class="report-shot" src="{{ url_for('reporting.loot_evidence', name=f.evidence_image) }}" alt="screenshot">{% endif %}
     {% if f.recommendation %}<p><b>Recommendation</b><br>{{ f.recommendation }}</p>{% endif %}
   </div>
   {% endfor %}

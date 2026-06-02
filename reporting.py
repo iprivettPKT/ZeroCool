@@ -11,14 +11,16 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import os
+import re
 import tempfile
 import threading
 import uuid
 from datetime import datetime
 
-from flask import (Blueprint, Response, abort, flash, redirect,
+from flask import (Blueprint, Response, abort, flash, jsonify, redirect,
                    render_template, request, send_file, url_for)
 
 import parser as nmap_parser
@@ -28,6 +30,7 @@ import storage
 reporting_bp = Blueprint("reporting", __name__)
 
 FINDINGS_FILE = os.path.join(storage.DATA_DIR, "findings.json")
+EVIDENCE_DIR = os.path.join(storage.DATA_DIR, "findings_evidence")
 SEVERITIES = ["Critical", "High", "Medium", "Low", "Info"]
 SEV_ORDER = {s: i for i, s in enumerate(SEVERITIES)}
 STATUSES = ["Open", "Confirmed", "Remediated", "Accepted Risk"]
@@ -228,6 +231,140 @@ FINDING_TEMPLATES = {
     "smb-anon-shares": _t("Anonymous SMB Share Access", "High",
         "SMB shares are readable without authentication, potentially disclosing sensitive files.",
         "Remove anonymous/guest access and review share permissions."),
+
+    # --- web application ---
+    "sqli": _t("SQL Injection", "Critical",
+        "User input is incorporated into SQL queries without parameterisation, allowing an attacker to read/modify the database and potentially achieve code execution.",
+        "Use parameterised queries / prepared statements, validate input, and apply least-privilege DB accounts."),
+    "cmd-injection": _t("OS Command Injection", "Critical",
+        "User input is passed to a system shell, allowing arbitrary command execution on the server.",
+        "Avoid shelling out with user input; use safe APIs, allow-lists, and strict input validation."),
+    "rfi": _t("Remote File Inclusion", "Critical",
+        "The application includes remote files based on user input, enabling remote code execution.",
+        "Disable remote includes (allow_url_include=Off) and use a strict allow-list of local resources."),
+    "insecure-deser": _t("Insecure Deserialization", "High",
+        "Untrusted data is deserialised, which can lead to remote code execution or object injection.",
+        "Avoid native deserialisation of untrusted input; use signed, schema-validated formats."),
+    "ssrf": _t("Server-Side Request Forgery (SSRF)", "High",
+        "The server can be coerced into making requests to arbitrary URLs, reaching internal services and cloud metadata.",
+        "Allow-list outbound destinations, block link-local/internal ranges, and disable unused URL schemes."),
+    "xxe": _t("XML External Entity (XXE) Injection", "High",
+        "The XML parser resolves external entities, enabling file disclosure, SSRF and DoS.",
+        "Disable external entity and DTD processing in the XML parser."),
+    "idor": _t("Insecure Direct Object Reference (IDOR)", "High",
+        "Object identifiers can be manipulated to access other users' data without authorisation.",
+        "Enforce object-level authorisation on every request; use unpredictable identifiers."),
+    "lfi": _t("Local File Inclusion / Path Traversal", "High",
+        "User input reaches file paths, allowing disclosure of arbitrary files (and sometimes RCE).",
+        "Canonicalise and validate paths against an allow-list; never use raw user input in file operations."),
+    "file-upload": _t("Unrestricted File Upload", "High",
+        "Arbitrary file types can be uploaded and executed, leading to remote code execution.",
+        "Validate type/extension/content, store outside the web root, and disable execution in the upload dir."),
+    "xss-stored": _t("Stored Cross-Site Scripting (XSS)", "High",
+        "Attacker-supplied script is persisted and executed in other users' browsers.",
+        "Context-aware output encoding, input validation, and a strong Content-Security-Policy."),
+    "xss-reflected": _t("Reflected Cross-Site Scripting (XSS)", "Medium",
+        "Unsanitised input is reflected into responses and executed in the victim's browser.",
+        "Context-aware output encoding and a Content-Security-Policy."),
+    "csrf": _t("Cross-Site Request Forgery (CSRF)", "Medium",
+        "State-changing requests lack anti-CSRF protection and can be forged from another site.",
+        "Use anti-CSRF tokens and SameSite cookies."),
+    "cors-misconfig": _t("CORS Misconfiguration", "Medium",
+        "An overly permissive CORS policy (e.g. reflecting Origin with credentials) exposes data cross-origin.",
+        "Restrict Access-Control-Allow-Origin to trusted origins; never combine wildcard with credentials."),
+    "weak-jwt": _t("Weak JWT Implementation", "High",
+        "JWTs accept weak/none algorithms or use a guessable secret, allowing token forgery.",
+        "Enforce a strong algorithm, reject 'none', and use a high-entropy signing key."),
+    "open-redirect": _t("Open Redirect", "Low",
+        "The application redirects to attacker-controlled URLs, aiding phishing.",
+        "Validate redirect targets against an allow-list of internal paths."),
+    "exposed-git": _t("Exposed .git Directory", "Medium",
+        "The version-control directory is web-accessible, disclosing source code and secrets.",
+        "Block access to .git/ and remove it from the web root."),
+    "exposed-env": _t("Exposed Configuration / .env File", "High",
+        "Configuration files containing secrets are web-accessible.",
+        "Move secrets out of the web root and deny access to config files."),
+    "backup-files": _t("Exposed Backup / Source Files", "Medium",
+        "Backup or source files (.bak, .old, .zip) are downloadable, disclosing code and credentials.",
+        "Remove backup artefacts from the web root and block their extensions."),
+    "admin-panel": _t("Exposed Administrative Interface", "Medium",
+        "An admin/management interface is reachable from untrusted networks.",
+        "Restrict admin interfaces by network/VPN and enforce strong auth + MFA."),
+    "verbose-errors": _t("Verbose Error Messages / Stack Traces", "Low",
+        "Detailed errors disclose stack traces, paths and technology details aiding further attacks.",
+        "Return generic errors to users and log details server-side."),
+    "http-methods": _t("Dangerous HTTP Methods Enabled", "Low",
+        "Methods such as PUT/DELETE/TRACE are enabled and may allow file upload or XST.",
+        "Disable unused HTTP methods at the server."),
+    "outdated-components": _t("Outdated / Vulnerable Components", "Medium",
+        "Out-of-date frameworks, libraries or CMS plugins with known vulnerabilities are in use.",
+        "Patch and maintain an inventory of components; subscribe to vulnerability feeds."),
+    "clickjacking": _t("Clickjacking (No Frame Protection)", "Low",
+        "Responses lack X-Frame-Options/CSP frame-ancestors and can be framed for UI-redress attacks.",
+        "Set X-Frame-Options: DENY or CSP frame-ancestors 'none'."),
+
+    # --- AD / Windows ---
+    "unconstrained-deleg": _t("Unconstrained Delegation", "High",
+        "A host/account with unconstrained delegation can capture and reuse TGTs of any authenticating user, including DCs.",
+        "Remove unconstrained delegation; use constrained or RBCD, and mark sensitive accounts non-delegable."),
+    "rbcd-abuse": _t("Resource-Based Constrained Delegation Abuse", "High",
+        "Write access to a computer's msDS-AllowedToActOnBehalfOfOtherIdentity allows impersonation to that host.",
+        "Restrict write access to computer objects and audit delegation settings."),
+    "esc1": _t("ADCS ESC1 — Misconfigured Certificate Template", "Critical",
+        "A certificate template allows requesters to specify the subject (SAN), enabling impersonation of any user incl. domain admins.",
+        "Remove ENROLLEE_SUPPLIES_SUBJECT, require manager approval, and restrict enrolment rights."),
+    "dcsync-rights": _t("Excessive DCSync Rights", "High",
+        "A non-tier-0 principal holds replication rights (DS-Replication-Get-Changes-All), allowing extraction of all domain hashes.",
+        "Remove replication rights from non-DC accounts and monitor DCSync activity."),
+    "dangerous-acl": _t("Dangerous ACL (GenericAll / WriteDACL)", "High",
+        "A low-privileged principal has powerful rights over a privileged object, enabling takeover.",
+        "Review and tighten ACLs on privileged users, groups and OUs."),
+    "password-in-desc": _t("Password in AD Object Description", "Medium",
+        "Credentials are stored in the description/notes of AD objects, readable by any authenticated user.",
+        "Remove secrets from object attributes and rotate the exposed credentials."),
+    "laps-not-deployed": _t("LAPS Not Deployed", "Medium",
+        "Local administrator passwords are not randomised/managed, enabling lateral movement via shared passwords.",
+        "Deploy Windows LAPS to randomise and rotate local admin passwords."),
+    "null-session": _t("SMB Null Session", "Medium",
+        "The host permits anonymous (null) SMB sessions, disclosing users, shares and policy information.",
+        "Restrict anonymous access (RestrictAnonymous/RestrictAnonymousSAM)."),
+    "anon-ldap": _t("Anonymous LDAP Bind", "Medium",
+        "The directory permits anonymous binds, disclosing directory information.",
+        "Disable anonymous LDAP binds."),
+
+    # --- cloud ---
+    "public-bucket": _t("Publicly Accessible Cloud Storage", "High",
+        "A storage bucket/container is readable (or writable) by anyone, exposing or allowing tampering of data.",
+        "Set the bucket private, enable public-access blocks, and review object ACLs/policies."),
+    "permissive-iam": _t("Overly Permissive IAM Policy", "High",
+        "An identity has excessive permissions (e.g. wildcard actions/resources), enabling privilege escalation.",
+        "Apply least privilege, scope actions/resources, and review policies regularly."),
+    "exposed-metadata": _t("Cloud Metadata Endpoint Exposure", "High",
+        "The instance metadata service is reachable (often via SSRF), exposing temporary cloud credentials.",
+        "Enforce IMDSv2 / metadata hardening and block SSRF paths to 169.254.169.254."),
+    "no-mfa": _t("MFA Not Enforced", "Medium",
+        "Privileged or all accounts can authenticate without multi-factor authentication.",
+        "Enforce MFA for all users, especially privileged and break-glass accounts."),
+    "public-snapshot": _t("Public Disk Snapshot / Image", "High",
+        "A disk snapshot or machine image is shared publicly, potentially exposing data and secrets.",
+        "Make snapshots/images private and audit sharing settings."),
+
+    # --- general ---
+    "weak-password": _t("Weak / Guessable Passwords", "High",
+        "Accounts use weak, default or easily guessable passwords, cracked offline or via spraying.",
+        "Enforce a strong password policy, screen against breached passwords, and use MFA."),
+    "password-reuse": _t("Password Reuse Across Accounts", "Medium",
+        "The same password is used across multiple accounts/systems, amplifying the impact of a single compromise.",
+        "Use unique passwords per account and a password manager; monitor for reuse."),
+    "hardcoded-creds": _t("Hardcoded Credentials", "High",
+        "Credentials or API keys are embedded in source code, scripts or config under version control.",
+        "Remove secrets from code, rotate them, and use a secrets manager."),
+    "no-lockout": _t("No Account Lockout Policy", "Medium",
+        "Authentication has no lockout/throttling, enabling unlimited brute-force / password spraying.",
+        "Implement lockout thresholds and rate-limiting / progressive delays."),
+    "info-disclosure": _t("Sensitive Information Disclosure", "Medium",
+        "The application or service discloses sensitive information (PII, internal details, secrets).",
+        "Remove sensitive data from responses and restrict access on a need-to-know basis."),
 }
 
 # port -> template key
@@ -485,6 +622,9 @@ def build_markdown(ctx: dict) -> str:
             L.append(f["evidence"])
             L.append("```")
             L.append("")
+        if f.get("evidence_image"):
+            L.append(f"**Evidence (screenshot):** `data/findings_evidence/{f['evidence_image']}`")
+            L.append("")
         if f.get("recommendation"):
             L.append("**Recommendation**")
             L.append("")
@@ -620,6 +760,51 @@ def loot_file():
     if not (real == real_loot or real.startswith(real_loot + os.sep)) or not os.path.isfile(real):
         abort(403)
     return send_file(real, as_attachment=bool(request.args.get("dl")))
+
+
+@reporting_bp.route("/loot/finding/screenshot", methods=["POST"])
+def loot_finding_screenshot():
+    """Create a finding from a captured terminal screenshot (a PNG data URL)."""
+    payload = request.get_json(silent=True) or {}
+    title = (payload.get("title") or "").strip()
+    if not title:
+        return jsonify({"error": "title required"}), 400
+
+    image_name = None
+    data_url = payload.get("image", "")
+    if isinstance(data_url, str) and data_url.startswith("data:image/png;base64,"):
+        try:
+            raw = base64.b64decode(data_url.split(",", 1)[1])
+            os.makedirs(EVIDENCE_DIR, exist_ok=True)
+            image_name = uuid.uuid4().hex[:12] + ".png"
+            with open(os.path.join(EVIDENCE_DIR, image_name), "wb") as fh:
+                fh.write(raw)
+        except (ValueError, OSError):
+            image_name = None
+
+    f = add_finding({
+        "title": title,
+        "severity": payload.get("severity", "Info"),
+        "status": payload.get("status", "Open"),
+        "host": (payload.get("host") or "").strip(),
+        "port": (payload.get("port") or "").strip(),
+        "description": (payload.get("description") or "").strip(),
+        "evidence": (payload.get("evidence") or "").strip(),
+        "recommendation": (payload.get("recommendation") or "").strip(),
+        "evidence_image": image_name,
+    })
+    return jsonify({"ok": True, "id": f["id"], "image": image_name})
+
+
+@reporting_bp.route("/loot/evidence/<name>")
+def loot_evidence(name):
+    """Serve a screenshot evidence image (filename only, no traversal)."""
+    if not re.fullmatch(r"[A-Za-z0-9._-]+\.png", name or ""):
+        abort(404)
+    path = os.path.join(EVIDENCE_DIR, name)
+    if not os.path.isfile(path):
+        abort(404)
+    return send_file(path)
 
 
 @reporting_bp.route("/report")

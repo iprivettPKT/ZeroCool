@@ -31,7 +31,7 @@ every command logged.
 | **Reverse Shells** | Multi-session TCP handler with an xterm.js console, PTY upgrade and raw interactive mode; reverse-shell payload generator. |
 | **Pivoting & Tunnels** | Chisel / Ligolo-ng / SSH (-L/-R/-D) / sshuttle / socat recipes, plus a proxychains config that the AD/Web modules can route through. |
 | **File Transfer** | Managed HTTP server — directory listing + downloads and PUT/POST uploads — with a transfer log and ready-made download/upload commands. |
-| **Loot & Reporting** | Findings tracker (add/edit/delete), a finding library, auto-detection from nmap results (incl. **confirmed** findings from NSE script output), loot browser, and HTML / Markdown report export. |
+| **Loot & Reporting** | Findings tracker (add/edit/delete), an 80+ template finding library, auto-detection from nmap results (incl. **confirmed** findings from NSE script output), **screenshot terminal output straight into a finding** (embedded in the report), loot browser, and HTML / Markdown report export. |
 
 Cross-cutting niceties:
 
@@ -86,7 +86,7 @@ sessions.py       reverse-shell listeners + sessions
 fileserver.py     managed HTTP file server
 reporting.py      findings, detections, report export
 templates/        Jinja templates
-static/           CSS, JS (incl. vendored xterm.js + cytoscape.js)
+static/           CSS, JS (incl. vendored xterm.js, cytoscape.js, html2canvas)
 ```
 
 Runtime data (engagement, findings, job output, fetched tools) lives under
